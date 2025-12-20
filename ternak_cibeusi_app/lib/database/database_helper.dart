@@ -12,8 +12,8 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    // GANTI KE V4 AGAR KOLOM KONDISI TERBENTUK OTOMATIS
-    _database = await _initDB('ternak_polban_v4.db'); 
+    // GANTI NAMA DB AGAR DATA BARU YANG AKUNTANSI-READY MASUK
+    _database = await _initDB('ternak_polban_accounting.db'); 
     return _database!;
   }
 
@@ -29,7 +29,7 @@ class DatabaseHelper {
   }
 
   Future _createDB(Database db, int version) async {
-    // 1. Tabel Asset (Tambah kolom condition)
+    // 1. Tabel Asset
     await db.execute('''
     CREATE TABLE assets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,51 +55,86 @@ class DatabaseHelper {
       )
     ''');
 
-    // 3. ISI DATA DUMMY (Updated dengan Kondisi)
+    // --- DATA DUMMY ---
     String today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-    
-    await db.insert('assets', {
-      'name': 'Ayam - Petelur',
-      'category': 'Aset Biologis',
-      'description': 'Ayam sehat siap produksi telur grade A',
-      'quantity': 50,
-      'imagePath': '',
-      'date': today,
-      'condition': 'Sehat'
-    });
+    String yesterday = DateFormat('yyyy-MM-dd').format(DateTime.now().subtract(const Duration(days: 1)));
 
-    await db.insert('assets', {
-      'name': 'Lele - Anakan/Bibit',
-      'category': 'Aset Biologis',
-      'description': 'Bibit lele sangkuriang kolam 2',
-      'quantity': 1000,
-      'imagePath': '',
-      'date': today,
-      'condition': 'Sehat'
-    });
+    // A. ASET (Tetap Aman)
+    List<Map<String, dynamic>> assets = [
+      {
+        'name': 'Ayam - Petelur',
+        'category': 'Aset Biologis',
+        'description': 'Ayam produktif',
+        'quantity': 150,
+        'imagePath': '',
+        'date': today,
+        'condition': 'Sehat'
+      },
+      {
+        'name': 'Pakan Konsentrat',
+        'category': 'Operasional',
+        'description': 'Stok gudang',
+        'quantity': 25,
+        'imagePath': '',
+        'date': today,
+        'condition': 'Baik'
+      },
+    ];
 
-    await db.insert('assets', {
-      'name': 'Pakan Konsentrat 511',
-      'category': 'Logistik',
-      'description': 'Stok gudang utama',
-      'quantity': 20,
-      'imagePath': '',
-      'date': today,
-      'condition': 'Baik'
-    });
+    for (var a in assets) {
+      await db.insert('assets', a);
+    }
 
-    await db.insert('assets', {
-      'name': 'Cangkul',
-      'category': 'Infrastruktur',
-      'description': 'Alat kebersihan kandang',
-      'quantity': 5,
-      'imagePath': '',
-      'date': today,
-      'condition': 'Rusak Ringan'
-    });
+    // B. KEUANGAN (AKUNTANSI READY)
+    // Kita gunakan kategori yang baku agar bisa dipetakan ke Jurnal
+    List<Map<String, dynamic>> transactions = [
+      // 1. SETOR MODAL (Penting buat Neraca)
+      {
+        'type': 'IN',
+        'amount': 10000000.0,
+        'category': 'Modal Awal', 
+        'description': 'Setoran modal pemilik',
+        'date': '2025-01-01'
+      },
+      // 2. PENDAPATAN
+      {
+        'type': 'IN',
+        'amount': 1500000.0,
+        'category': 'Penjualan Hasil Ternak',
+        'description': 'Jual Telur Minggu 1',
+        'date': yesterday
+      },
+      // 3. BEBAN (PENGELUARAN)
+      {
+        'type': 'OUT',
+        'amount': 500000.0,
+        'category': 'Biaya Pakan',
+        'description': 'Beli konsentrat',
+        'date': today
+      },
+      {
+        'type': 'OUT',
+        'amount': 200000.0,
+        'category': 'Biaya Listrik & Air',
+        'description': 'Token listrik',
+        'date': today
+      },
+      // 4. PRIVE (TARIK UANG)
+      {
+        'type': 'OUT',
+        'amount': 100000.0,
+        'category': 'Prive (Tarik Modal)',
+        'description': 'Keperluan pribadi',
+        'date': today
+      },
+    ];
+
+    for (var t in transactions) {
+      await db.insert('transactions', t);
+    }
   }
 
-  // --- CRUD OPERATONS ---
+  // --- CRUD METHODS (SAMA SEPERTI SEBELUMNYA) ---
   Future<int> create(AssetModel asset) async {
     final db = await instance.database;
     return await db.insert('assets', asset.toMap());

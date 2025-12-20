@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart'; // WAJIB ADA
+import 'package:image_picker/image_picker.dart'; 
 import 'dart:io';
 import 'asset_model.dart';
 import 'database/database_helper.dart';
@@ -22,8 +22,9 @@ class _FormAssetPageState extends State<FormAssetPage> {
   late TextEditingController _quantityController;
   late TextEditingController _descController;
   
+  // GANTI LOGISTIK JADI OPERASIONAL
   String _kategoriUtama = 'Aset Biologis';
-  final List<String> _listKategoriUtama = ['Aset Biologis', 'Logistik', 'Infrastruktur'];
+  final List<String> _listKategoriUtama = ['Aset Biologis', 'Operasional', 'Infrastruktur'];
 
   String? _jenisHewan;
   final List<String> _listHewan = ['Ayam', 'Bebek', 'Lele'];
@@ -36,7 +37,6 @@ class _FormAssetPageState extends State<FormAssetPage> {
 
   String? _namaManual;
   
-  // VARIABLE UNTUK GAMBAR
   String _imagePath = '';
   final ImagePicker _picker = ImagePicker();
 
@@ -46,7 +46,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
     _quantityController = TextEditingController(text: widget.asset?.jumlah.toString() ?? '');
     _descController = TextEditingController(text: widget.asset?.deskripsi ?? '');
     _kondisi = widget.asset?.kondisi;
-    _imagePath = widget.asset?.imagePath ?? ''; // Load gambar lama jika ada
+    _imagePath = widget.asset?.imagePath ?? '';
 
     if (widget.asset != null) {
       if (_listKategoriUtama.contains(widget.asset!.kategori)) {
@@ -66,7 +66,6 @@ class _FormAssetPageState extends State<FormAssetPage> {
     }
   }
 
-  // FUNGSI PILIH GAMBAR
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
     if (image != null) {
@@ -111,7 +110,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
           kategori: _kategoriUtama,
           jumlah: int.parse(_quantityController.text),
           deskripsi: _descController.text,
-          imagePath: _imagePath, // SIMPAN PATH GAMBAR
+          imagePath: _imagePath,
           date: widget.asset?.date ?? DateFormat('yyyy-MM-dd').format(DateTime.now()),
           kondisi: finalKondisi,
         );
@@ -147,7 +146,6 @@ class _FormAssetPageState extends State<FormAssetPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- AREA UPLOAD FOTO ---
               GestureDetector(
                 onTap: _pickImage,
                 child: Container(
@@ -199,7 +197,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
                 DropdownButtonFormField<String>(
                   value: _jenisHewan,
                   hint: const Text("Pilih (Ayam / Bebek / Lele)"),
-                  decoration: _inputDecoration(icon: Icons.grass), // ICON RUMPUT (NATURAL & SIMPEL)
+                  decoration: _inputDecoration(icon: Icons.grass),
                   items: _listHewan.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
                   onChanged: (val) => setState(() => _jenisHewan = val),
                 ),
@@ -208,7 +206,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
                 DropdownButtonFormField<String>(
                   value: _tipeHewan,
                   hint: const Text("Pilih (Petelur / Pedaging)"),
-                  decoration: _inputDecoration(icon: Icons.layers), // ICON LAYERS (SIMPEL)
+                  decoration: _inputDecoration(icon: Icons.layers),
                   items: _listTipe.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
                   onChanged: (val) => setState(() => _tipeHewan = val),
                 ),
@@ -216,7 +214,11 @@ class _FormAssetPageState extends State<FormAssetPage> {
                 _buildSectionTitle("Nama Barang / Alat"),
                 TextFormField(
                   initialValue: _namaManual,
-                  decoration: _inputDecoration(icon: Icons.inventory_2),
+                  // GANTI HINT TEXT UNTUK OPERASIONAL
+                  decoration: _inputDecoration(
+                    icon: Icons.inventory_2, 
+                    hint: _kategoriUtama == 'Operasional' ? 'Cth: Pakan Konsentrat / Obat' : 'Cth: Cangkul / Sekop'
+                  ),
                   onSaved: (val) => _namaManual = val,
                 ),
               ],
@@ -269,7 +271,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
     );
   }
 
-  InputDecoration _inputDecoration({IconData? icon, String? suffix}) {
+  InputDecoration _inputDecoration({IconData? icon, String? suffix, String? hint}) {
     return InputDecoration(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(
@@ -284,6 +286,7 @@ class _FormAssetPageState extends State<FormAssetPage> {
       fillColor: Colors.grey[50],
       prefixIcon: icon != null ? Icon(icon, color: polbanBlue) : null,
       suffixText: suffix,
+      hintText: hint,
     );
   }
 

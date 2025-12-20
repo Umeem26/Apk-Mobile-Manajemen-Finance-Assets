@@ -1,18 +1,18 @@
-import 'dart:io'; // Import wajib untuk cek Windows
+import 'dart:io'; // IMPORT WAJIB 1
 import 'package:flutter/material.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Import wajib database Windows
+import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // IMPORT WAJIB 2 (DATABASE WINDOWS)
 import 'list_asset_page.dart';
 import 'finance_page.dart';
-import 'report_page.dart'; // Tambahkan ini
+import 'report_page.dart';
+import 'settings_page.dart';
 
 void main() {
-  // --- KODE KHUSUS WINDOWS (WAJIB ADA) ---
+  // --- KODE KHUSUS WINDOWS (INI YANG TADI HILANG) ---
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-    // Inisialisasi Database Desktop
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
-  // ----------------------------------------
+  // --------------------------------------------------
 
   runApp(const MyApp());
 }
@@ -71,14 +71,16 @@ class BerandaPage extends StatelessWidget {
               'Dashboard Utama',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF1E549F)),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 15),
 
+            // Grid Menu Utama
             Expanded(
               child: GridView.count(
-                crossAxisCount: 2,
+                crossAxisCount: 2, 
                 crossAxisSpacing: 20,
                 mainAxisSpacing: 20,
-                childAspectRatio: 1.1, 
+                // Rasio 1.6 agar kartu LEBAR & PENDEK (Pas 1 Layar)
+                childAspectRatio: 1.6, 
                 children: [
                   // MENU 1: MANAJEMEN ASET
                   HoverMenuCard(
@@ -117,11 +119,10 @@ class BerandaPage extends StatelessWidget {
                     icon: Icons.bar_chart,
                     label: 'LAPORAN',
                     subLabel: 'Statistik Peternakan',
-                    baseColor: Colors.grey.shade600, // Bisa diganti polbanBlue kalau mau seragam
+                    baseColor: Colors.grey.shade600,
                     hoverColor: Colors.grey.shade500,
                     iconColor: Colors.white,
                     onTap: () {
-                      // KODE BARU: PINDAH KE HALAMAN LAPORAN
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => const ReportPage()),
@@ -138,8 +139,9 @@ class BerandaPage extends StatelessWidget {
                     hoverColor: Colors.blueGrey.shade600,
                     iconColor: Colors.white,
                     onTap: () {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Fitur Pengaturan akan segera hadir!")),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SettingsPage()),
                       );
                     },
                   ),
@@ -209,29 +211,29 @@ class _HoverMenuCardState extends State<HoverMenuCard> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.2),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(widget.icon, size: 42, color: widget.iconColor),
+                child: Icon(widget.icon, size: 38, color: widget.iconColor),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 10),
               Text(
                 widget.label,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 15,
                   letterSpacing: 1.0,
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
               Text(
                 widget.subLabel,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
               ),
             ],
           ),

@@ -13,240 +13,219 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-
-  // Warna Polban
   final Color polbanBlue = const Color(0xFF1E549F);
   final Color polbanOrange = const Color(0xFFFA9C1B);
 
-  // Data Statistik
-  int _totalAset = 0;
-  int _asetBiologis = 0;
-  int _asetLogistik = 0;
-  int _asetInfra = 0;
-  
-  int _kondisiSehat = 0;
-  int _kondisiSakit = 0;
-
-  double _totalUangMasuk = 0;
-  double _totalUangKeluar = 0;
-  double _saldoBersih = 0;
+  // --- VARIABEL AKUNTANSI ---
+  double _modalAwal = 0;
+  double _totalPendapatan = 0;
+  double _totalBeban = 0;
+  double _totalPrive = 0;
+  double _labaBersih = 0;
+  double _modalAkhir = 0;
+  double _kasDiTangan = 0;
 
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadStatistics();
+    _calculateAccounting();
   }
 
-  void _loadStatistics() async {
-    final assets = await _dbHelper.readAllAssets();
+  // --- LOGIKA "SISTEM BERMAIN DI BELAKANG" ---
+  void _calculateAccounting() async {
     final trans = await _dbHelper.getTransactions();
 
-    int bio = 0, log = 0, infra = 0;
-    int sehat = 0, sakit = 0;
-    
-    // Hitung Aset
-    for (var a in assets) {
-      if (a.kategori == 'Aset Biologis') bio += a.jumlah;
-      if (a.kategori == 'Logistik') log += a.jumlah;
-      if (a.kategori == 'Infrastruktur') infra += a.jumlah;
+    double modal = 0;
+    double pendapatan = 0;
+    double beban = 0;
+    double prive = 0;
+    double kasMasuk = 0;
+    double kasKeluar = 0;
 
-      // Cek Kondisi (Case insensitive)
-      String k = a.kondisi.toLowerCase();
-      if (k.contains('sehat') || k.contains('baik')) {
-        sehat += a.jumlah;
-      } else {
-        sakit += a.jumlah; // Sakit, Rusak, Mati, dll
-      }
-    }
-
-    // Hitung Keuangan
-    double masuk = 0, keluar = 0;
     for (var t in trans) {
-      if (t.type == 'IN') masuk += t.amount;
-      else keluar += t.amount;
+      // 1. HITUNG ARUS KAS (Untuk Neraca sisi Aset)
+      if (t.type == 'IN') kasMasuk += t.amount;
+      if (t.type == 'OUT') kasKeluar += t.amount;
+
+      // 2. PEMETAAN JURNAL (MAPPING)
+      // Sistem membaca kategori string dan memasukkannya ke pos akuntansi yg benar
+      
+      if (t.category == 'Modal Awal') {
+        modal += t.amount;
+      } 
+      else if (t.category.contains('Penjualan') || t.category.contains('Pendapatan')) {
+        pendapatan += t.amount;
+      }
+      else if (t.category.contains('Biaya')) {
+        beban += t.amount;
+      }
+      else if (t.category.contains('Prive')) {
+        prive += t.amount;
+      }
+      // Note: "Pembelian Aset Tetap" mengurangi Kas tapi tidak masuk Beban (masuk Aset di Neraca)
     }
+
+    // RUMUS DASAR AKUNTANSI
+    double laba = pendapatan - beban;
+    double modAkhir = modal + laba - prive;
+    double sisaKas = kasMasuk - kasKeluar;
 
     if (mounted) {
       setState(() {
-        _totalAset = bio + log + infra;
-        _asetBiologis = bio;
-        _asetLogistik = log;
-        _asetInfra = infra;
-        _kondisiSehat = sehat;
-        _kondisiSakit = sakit;
-
-        _totalUangMasuk = masuk;
-        _totalUangKeluar = keluar;
-        _saldoBersih = masuk - keluar;
-        
+        _modalAwal = modal;
+        _totalPendapatan = pendapatan;
+        _totalBeban = beban;
+        _totalPrive = prive;
+        _labaBersih = laba;
+        _modalAkhir = modAkhir;
+        _kasDiTangan = sisaKas;
         _isLoading = false;
       });
     }
   }
 
-  String _formatCurrency(double amount) {
+  String _fmt(double amount) {
     return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(amount);
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text('Laporan & Statistik', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: polbanBlue,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: _isLoading 
-        ? Center(child: CircularProgressIndicator(color: polbanBlue))
-        : SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // --- BAGIAN 1: RINGKASAN ASET ---
-                _buildSectionTitle("Ringkasan Aset Ternak"),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(child: _buildStatCard("Total Stok", "$_totalAset Unit", Icons.inventory_2, polbanBlue)),
-                    const SizedBox(width: 15),
-                    Expanded(child: _buildStatCard("Hewan Ternak", "$_asetBiologis Ekor", Icons.pets, polbanOrange)),
-                  ],
-                ),
-                const SizedBox(height: 15),
-                
-                // Grafik Batang Sederhana (Kondisi)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10)],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text("Kondisi Kesehatan / Kelayakan", style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 15),
-                      _buildProgressBar("Sehat / Baik", _kondisiSehat, _totalAset, Colors.green),
-                      const SizedBox(height: 15),
-                      _buildProgressBar("Sakit / Rusak", _kondisiSakit, _totalAset, Colors.redAccent),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // --- BAGIAN 2: RINGKASAN KEUANGAN ---
-                _buildSectionTitle("Ringkasan Keuangan"),
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [polbanBlue, const Color(0xFF4376C4)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: polbanBlue.withOpacity(0.3), blurRadius: 10, offset: const Offset(0,5))],
-                  ),
-                  child: Column(
-                    children: [
-                      const Text("Saldo Bersih Saat Ini", style: TextStyle(color: Colors.white70)),
-                      const SizedBox(height: 5),
-                      Text(_formatCurrency(_saldoBersih), style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                      const Divider(color: Colors.white24, height: 30),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("Total Pemasukan", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                              Text(_formatCurrency(_totalUangMasuk), style: const TextStyle(color: Colors.lightGreenAccent, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              const Text("Total Pengeluaran", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                              Text(_formatCurrency(_totalUangKeluar), style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold)),
-                            ],
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              ],
-            ),
+    return DefaultTabController(
+      length: 3,
+      child: Scaffold(
+        backgroundColor: Colors.grey[50],
+        appBar: AppBar(
+          title: const Text('Laporan Keuangan', style: TextStyle(fontWeight: FontWeight.bold)),
+          backgroundColor: polbanBlue,
+          foregroundColor: Colors.white,
+          centerTitle: true,
+          bottom: const TabBar(
+            indicatorColor: Color(0xFFFA9C1B),
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white60,
+            tabs: [
+              Tab(text: "LABA RUGI"),
+              Tab(text: "PERUBAHAN MODAL"),
+              Tab(text: "NERACA"),
+            ],
           ),
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title, 
-      style: TextStyle(
-        fontSize: 18, 
-        fontWeight: FontWeight.bold, 
-        color: Colors.grey[800],
-        letterSpacing: 0.5
-      )
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: color.withOpacity(0.2)),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 5, offset: const Offset(0,3))],
+        ),
+        body: _isLoading 
+            ? Center(child: CircularProgressIndicator(color: polbanBlue))
+            : TabBarView(
+                children: [
+                  _buildLabaRugiTab(),
+                  _buildPerubahanModalTab(),
+                  _buildNeracaTab(),
+                ],
+              ),
       ),
+    );
+  }
+
+  // TAB 1: LAPORAN LABA RUGI
+  Widget _buildLabaRugiTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 30),
+          _buildReportCard("Pendapatan Usaha", _totalPendapatan, Colors.green),
           const SizedBox(height: 10),
-          Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 12)),
-          const SizedBox(height: 5),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 18)),
+          const Icon(Icons.remove_circle_outline, color: Colors.grey),
+          const SizedBox(height: 10),
+          _buildReportCard("Beban Operasional", _totalBeban, Colors.redAccent),
+          const Divider(height: 40, thickness: 2),
+          _buildReportCard("LABA / RUGI BERSIH", _labaBersih, _labaBersih >= 0 ? polbanBlue : Colors.red, isTotal: true),
         ],
       ),
     );
   }
 
-  Widget _buildProgressBar(String label, int value, int total, Color color) {
-    double percent = total == 0 ? 0 : value / total;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-            Text("$value Item", style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(5),
-          child: LinearProgressIndicator(
-            value: percent,
-            backgroundColor: Colors.grey[200],
-            color: color,
-            minHeight: 8,
-          ),
-        ),
-      ],
+  // TAB 2: LAPORAN PERUBAHAN MODAL
+  Widget _buildPerubahanModalTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          _buildReportCard("Modal Awal", _modalAwal, Colors.blueGrey),
+          const SizedBox(height: 5),
+          _buildRowItem("Ditambah: Laba Bersih", _labaBersih, Colors.green),
+          const SizedBox(height: 5),
+          _buildRowItem("Dikurangi: Prive (Tarik)", _totalPrive, Colors.red),
+          const Divider(height: 40, thickness: 2),
+          _buildReportCard("MODAL AKHIR", _modalAkhir, polbanOrange, isTotal: true),
+        ],
+      ),
+    );
+  }
+
+  // TAB 3: NERACA (BALANCE SHEET)
+  Widget _buildNeracaTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text("AKTIVA (ASET)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 10),
+          _buildReportCard("Kas di Tangan", _kasDiTangan, polbanBlue),
+          // Disini bisa ditambah nilai Inventory Aset jika mau, tapi kita fokus ke Kas dulu
+          
+          const SizedBox(height: 30),
+          const Text("PASIVA (KEWAJIBAN & EKUITAS)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 10),
+          _buildReportCard("Modal Pemilik", _modalAkhir, polbanBlue),
+          
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(15),
+            decoration: BoxDecoration(color: Colors.green[50], borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              children: const [
+                Icon(Icons.check_circle, color: Colors.green),
+                SizedBox(width: 10),
+                Expanded(child: Text("Neraca Seimbang (Balance) jika Kas = Modal Akhir (dalam sistem sederhana ini).")),
+              ],
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // WIDGET HELPER
+  Widget _buildReportCard(String title, double value, Color color, {bool isTotal = false}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: isTotal ? Border.all(color: color, width: 2) : null,
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), blurRadius: 10)],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(title, style: TextStyle(fontSize: isTotal ? 18 : 16, fontWeight: isTotal ? FontWeight.bold : FontWeight.normal)),
+          Text(_fmt(value), style: TextStyle(fontSize: isTotal ? 18 : 16, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRowItem(String label, double value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label),
+          Text(_fmt(value), style: TextStyle(fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
     );
   }
 }

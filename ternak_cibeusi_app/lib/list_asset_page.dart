@@ -62,11 +62,11 @@ class _ListAssetPageState extends State<ListAssetPage> {
             indicatorWeight: 4,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white60,
-            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             tabs: const [
-              Tab(text: "BIOLOGIS", icon: Icon(Icons.grass)), // ICON SIMPEL
-              Tab(text: "LOGISTIK", icon: Icon(Icons.layers)), // ICON SIMPEL
-              Tab(text: "INFRASTRUKTUR", icon: Icon(Icons.build_circle)), // ICON SIMPEL
+              Tab(text: "BIOLOGIS", icon: Icon(Icons.grass)),
+              Tab(text: "OPERASIONAL", icon: Icon(Icons.layers)), // GANTI NAMA TAB
+              Tab(text: "INFRASTRUKTUR", icon: Icon(Icons.build_circle)),
             ],
           ),
         ),
@@ -75,7 +75,8 @@ class _ListAssetPageState extends State<ListAssetPage> {
             : TabBarView(
                 children: [
                   _buildAssetList(_getAssetsByCategory('Aset Biologis'), 'Hewan Ternak Kosong', Icons.grass, polbanBlue),
-                  _buildAssetList(_getAssetsByCategory('Logistik'), 'Stok Pakan Kosong', Icons.layers, Colors.green),
+                  // FILTER BERDASARKAN "OPERASIONAL"
+                  _buildAssetList(_getAssetsByCategory('Operasional'), 'Data Operasional Kosong', Icons.layers, Colors.green),
                   _buildAssetList(_getAssetsByCategory('Infrastruktur'), 'Alat & Kandang Kosong', Icons.build_circle, polbanOrange),
                 ],
               ),
@@ -152,7 +153,7 @@ class _ListAssetPageState extends State<ListAssetPage> {
                     : null,
               ),
               child: !hasImage
-                  ? Icon(defaultIcon, color: themeColor, size: 30) // Pakai Ikon Tab
+                  ? Icon(defaultIcon, color: themeColor, size: 30)
                   : null,
             ),
             title: Text(
