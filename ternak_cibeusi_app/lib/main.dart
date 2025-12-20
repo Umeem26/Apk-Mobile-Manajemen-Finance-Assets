@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Import wajib database Windows
 import 'list_asset_page.dart';
 import 'finance_page.dart';
+import 'report_page.dart'; // Tambahkan ini
 
 void main() {
   // --- KODE KHUSUS WINDOWS (WAJIB ADA) ---
@@ -116,12 +117,14 @@ class BerandaPage extends StatelessWidget {
                     icon: Icons.bar_chart,
                     label: 'LAPORAN',
                     subLabel: 'Statistik Peternakan',
-                    baseColor: Colors.grey.shade600,
+                    baseColor: Colors.grey.shade600, // Bisa diganti polbanBlue kalau mau seragam
                     hoverColor: Colors.grey.shade500,
                     iconColor: Colors.white,
                     onTap: () {
-                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text("Fitur Laporan akan segera hadir!")),
+                      // KODE BARU: PINDAH KE HALAMAN LAPORAN
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const ReportPage()),
                       );
                     },
                   ),
