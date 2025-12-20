@@ -1,205 +1,175 @@
 import 'package:flutter/material.dart';
 import 'asset_model.dart';
+import 'database/database_helper.dart';
 import 'form_asset_page.dart';
+import 'dart:io';
 
 class DetailAssetPage extends StatefulWidget {
   final AssetModel asset;
-  final Color temaWarna; 
-
-  const DetailAssetPage({
-    super.key, 
-    required this.asset,
-    this.temaWarna = Colors.blue, 
-  });
+  const DetailAssetPage({Key? key, required this.asset}) : super(key: key);
 
   @override
   State<DetailAssetPage> createState() => _DetailAssetPageState();
 }
 
 class _DetailAssetPageState extends State<DetailAssetPage> {
-  late AssetModel dataAsset;
-  bool _isEdited = false;
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final Color polbanBlue = const Color(0xFF1E549F);
+  final Color polbanOrange = const Color(0xFFFA9C1B);
 
-  @override
-  void initState() {
-    super.initState();
-    dataAsset = widget.asset;
+  void _deleteAsset() async {
+    await _dbHelper.delete(widget.asset.id!);
+    if (!mounted) return;
+    Navigator.pop(context); 
   }
 
-  void _onBack() {
-    Navigator.pop(context, _isEdited ? dataAsset : null);
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Data?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text('Anda yakin ingin menghapus "${widget.asset.nama}"?'),
+        actions: [
+          TextButton(child: const Text('Batal'), onPressed: () => Navigator.pop(ctx)),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteAsset();
+            },
+            child: const Text('Hapus', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) { if (!didPop) _onBack(); },
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          backgroundColor: widget.temaWarna,
-          elevation: 0,
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: _onBack,
+    bool hasImage = widget.asset.imagePath.isNotEmpty && File(widget.asset.imagePath).existsSync();
+
+    return Scaffold(
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: const Text('Rincian Aset', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: polbanBlue,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => FormAssetPage(asset: widget.asset)),
+              ).then((_) => setState(() {})); 
+            },
           ),
-          title: const Text('Detail Aset', style: TextStyle(color: Colors.white)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.delete, color: Colors.white),
-              onPressed: () => _konfirmasiHapus(context),
-            )
+          IconButton(icon: const Icon(Icons.delete), onPressed: _confirmDelete),
+        ],
+      ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            Container(
+              width: double.infinity,
+              height: 220,
+              decoration: BoxDecoration(
+                color: polbanBlue,
+                borderRadius: const BorderRadius.only(bottomLeft: Radius.circular(30), bottomRight: Radius.circular(30)),
+                image: hasImage
+                    ? DecorationImage(
+                        image: FileImage(File(widget.asset.imagePath)),
+                        fit: BoxFit.cover,
+                        colorFilter: ColorFilter.mode(Colors.black.withOpacity(0.3), BlendMode.darken),
+                      )
+                    : null,
+              ),
+              child: !hasImage
+                  ? Center(child: Icon(Icons.image, size: 100, color: Colors.white.withOpacity(0.3))) // GANTI PAW JADI IMAGE
+                  : null,
+            ),
+
+            Transform.translate(
+              offset: const Offset(0, -40),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(25),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(color: Colors.blueGrey.withOpacity(0.15), blurRadius: 15, offset: const Offset(0, 5)),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(widget.asset.nama, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: polbanBlue)),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          _buildBadge(widget.asset.kategori.toUpperCase(), polbanOrange),
+                          const SizedBox(width: 8),
+                          _buildBadge(widget.asset.kondisi.toUpperCase(), Colors.green), // BADGE KONDISI
+                        ],
+                      ),
+                      const Divider(height: 30),
+
+                      _buildDetailRow(Icons.numbers, "Jumlah Stok", "${widget.asset.jumlah} Unit"),
+                      _buildDetailRow(Icons.health_and_safety, "Kondisi", widget.asset.kondisi), // TAMPIL KONDISI
+                      _buildDetailRow(Icons.calendar_today, "Tanggal Input", widget.asset.date),
+                      
+                      const Divider(height: 30),
+                      const Text("Keterangan", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      const SizedBox(height: 8),
+                      Text(widget.asset.deskripsi.isEmpty ? "-" : widget.asset.deskripsi, style: const TextStyle(fontSize: 15, height: 1.5)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
-        ),
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              // Header Besar
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.only(bottom: 40, top: 20),
-                decoration: BoxDecoration(
-                  color: widget.temaWarna,
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(40),
-                    bottomRight: Radius.circular(40),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(_getIcon(dataAsset.kategori), size: 60, color: Colors.white),
-                    ),
-                    const SizedBox(height: 15),
-                    Text(dataAsset.nama, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-                    const SizedBox(height: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        dataAsset.kategori.toUpperCase(),
-                        style: TextStyle(fontWeight: FontWeight.bold, color: widget.temaWarna, fontSize: 12),
-                      ),
-                    )
-                  ],
-                ),
-              ),
-              const SizedBox(height: 30),
-
-              // Grid Informasi Style Polban
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    _buildPolbanInfoRow("Jenis / Spesifikasi", dataAsset.jenis, Icons.description),
-                    _buildPolbanInfoRow("Jumlah Total", "${dataAsset.jumlah} ${dataAsset.satuan}", Icons.analytics),
-                    _buildPolbanInfoRow("Lokasi Penyimpanan", dataAsset.lokasi, Icons.place),
-                    _buildPolbanInfoRow("Kondisi Terkini", dataAsset.kondisi, Icons.verified_user),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 30),
-              
-              // Tombol Edit
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final result = await Navigator.push(
-                        context,
-                        // PERUBAHAN DISINI: Kirim temaWarna ke form edit
-                        MaterialPageRoute(builder: (context) => FormAssetPage(assetEdit: dataAsset, themeColor: widget.temaWarna)),
-                      );
-                      if (result != null && result is AssetModel) {
-                        setState(() { dataAsset = result; _isEdited = true; });
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Data berhasil diperbarui')));
-                      }
-                    },
-                    icon: const Icon(Icons.edit),
-                    label: const Text('EDIT DATA'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: widget.temaWarna,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      elevation: 4,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 30),
-            ],
-          ),
         ),
       ),
     );
   }
 
-  Widget _buildPolbanInfoRow(String label, String value, IconData icon) {
-    // (Kode sama seperti sebelumnya)
+  Widget _buildBadge(String text, Color color) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.5)),
       ),
+      child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
+    );
+  }
+
+  Widget _buildDetailRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
       child: Row(
         children: [
-          Icon(icon, color: Colors.grey.shade500, size: 28),
-          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
+            child: Icon(icon, color: polbanBlue, size: 20),
+          ),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ],
             ),
           ),
         ],
       ),
     );
-  }
-
-  void _konfirmasiHapus(BuildContext context) {
-    // (Kode sama seperti sebelumnya)
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Data'),
-        content: Text('Hapus ${dataAsset.nama}?'),
-        actions: [
-          TextButton(child: const Text('Batal'), onPressed: () => Navigator.pop(ctx)),
-          TextButton(
-            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context, 'hapus');
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  IconData _getIcon(String kategori) {
-    if (kategori == 'Biologis') return Icons.pets;
-    if (kategori == 'Operasional') return Icons.settings;
-    return Icons.house_siding;
   }
 }

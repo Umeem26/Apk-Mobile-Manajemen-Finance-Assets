@@ -1,198 +1,296 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart'; // WAJIB ADA
+import 'dart:io';
 import 'asset_model.dart';
+import 'database/database_helper.dart';
 
 class FormAssetPage extends StatefulWidget {
-  final AssetModel? assetEdit; // Data jika mode edit
-  final Color themeColor; // <-- Tambahan: Warna tema yang dioper
+  final AssetModel? asset; 
 
-  // Kita wajibkan pengiriman warna tema
-  const FormAssetPage({super.key, this.assetEdit, required this.themeColor});
+  const FormAssetPage({Key? key, this.asset}) : super(key: key);
 
   @override
   State<FormAssetPage> createState() => _FormAssetPageState();
 }
 
 class _FormAssetPageState extends State<FormAssetPage> {
-  final _namaController = TextEditingController();
-  final _jenisController = TextEditingController();
-  final _jumlahController = TextEditingController();
-  final _lokasiController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  final Color polbanBlue = const Color(0xFF1E549F);
+  
+  late TextEditingController _quantityController;
+  late TextEditingController _descController;
+  
+  String _kategoriUtama = 'Aset Biologis';
+  final List<String> _listKategoriUtama = ['Aset Biologis', 'Logistik', 'Infrastruktur'];
 
-  String _kategori = 'Biologis';
-  String _satuan = 'Ekor';
-  String _kondisi = 'Baik';
+  String? _jenisHewan;
+  final List<String> _listHewan = ['Ayam', 'Bebek', 'Lele'];
+  String? _tipeHewan;
+  final List<String> _listTipe = ['Petelur', 'Pedaging', 'Pejantan', 'Anakan/Bibit'];
 
-  final List<String> _kategoriList = ['Biologis', 'Operasional', 'Kandang'];
-  final List<String> _kondisiList = ['Baik', 'Perawatan/Service', 'Rusak/Sakit', 'Afkir/Tidak Aktif'];
+  String? _kondisi;
+  final List<String> _kondisiHewan = ['Sehat', 'Sakit', 'Karantina', 'Mati/Afkir'];
+  final List<String> _kondisiBarang = ['Baik', 'Rusak Ringan', 'Rusak Berat', 'Kadaluarsa'];
+
+  String? _namaManual;
+  
+  // VARIABLE UNTUK GAMBAR
+  String _imagePath = '';
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
     super.initState();
-    if (widget.assetEdit != null) {
-      _namaController.text = widget.assetEdit!.nama;
-      _jenisController.text = widget.assetEdit!.jenis;
-      _jumlahController.text = widget.assetEdit!.jumlah.toString();
-      _lokasiController.text = widget.assetEdit!.lokasi;
-      _kategori = widget.assetEdit!.kategori;
-      _satuan = widget.assetEdit!.satuan;
-      
-      if (_kondisiList.contains(widget.assetEdit!.kondisi)) {
-        _kondisi = widget.assetEdit!.kondisi;
-      } else {
-        _kondisi = 'Baik'; 
+    _quantityController = TextEditingController(text: widget.asset?.jumlah.toString() ?? '');
+    _descController = TextEditingController(text: widget.asset?.deskripsi ?? '');
+    _kondisi = widget.asset?.kondisi;
+    _imagePath = widget.asset?.imagePath ?? ''; // Load gambar lama jika ada
+
+    if (widget.asset != null) {
+      if (_listKategoriUtama.contains(widget.asset!.kategori)) {
+        _kategoriUtama = widget.asset!.kategori;
       }
-    } else {
-        // Jika mode tambah baru, set kategori default berdasarkan warna tema untuk UX yang lebih baik
-        // (Opsional, tapi membantu)
-        if (widget.themeColor == const Color(0xFF1E549F)) { // Biru Kandang
-             _kategori = 'Kandang'; _satuan = 'Unit';
-        } else if (widget.themeColor == const Color(0xFFFA9C1B)) { // Oranye Ops
-             _kategori = 'Operasional'; _satuan = 'Unit';
+      if (_kategoriUtama == 'Aset Biologis') {
+        final split = widget.asset!.nama.split(' - ');
+        if (split.length >= 2) {
+          if (_listHewan.contains(split[0])) _jenisHewan = split[0];
+          if (_listTipe.contains(split[1])) _tipeHewan = split[1];
+        } else {
+          if (_listHewan.contains(widget.asset!.nama)) _jenisHewan = widget.asset!.nama;
         }
+      } else {
+        _namaManual = widget.asset!.nama;
+      }
     }
   }
 
-  void _updateSatuanOtomatis(String kategoriBaru) {
-    setState(() {
-      _kategori = kategoriBaru;
-      if (_kategori == 'Biologis') {
-        _satuan = 'Ekor';
-      } else if (_kategori == 'Operasional') {
-        _satuan = 'Unit';
+  // FUNGSI PILIH GAMBAR
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        _imagePath = image.path;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _quantityController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  void _saveAsset() async {
+    if (_formKey.currentState!.validate()) {
+      _formKey.currentState!.save();
+
+      String finalName = '';
+      if (_kategoriUtama == 'Aset Biologis') {
+        if (_jenisHewan == null || _tipeHewan == null) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Lengkapi data hewan!")));
+          return;
+        }
+        finalName = "$_jenisHewan - $_tipeHewan";
       } else {
-        _satuan = 'Unit';
+        if (_namaManual == null || _namaManual!.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Nama Aset wajib diisi!")));
+          return;
+        }
+        finalName = _namaManual!;
       }
-    });
+
+      String finalKondisi = _kondisi ?? (_kategoriUtama == 'Aset Biologis' ? 'Sehat' : 'Baik');
+
+      try {
+        final newAsset = AssetModel(
+          id: widget.asset?.id,
+          nama: finalName,
+          kategori: _kategoriUtama,
+          jumlah: int.parse(_quantityController.text),
+          deskripsi: _descController.text,
+          imagePath: _imagePath, // SIMPAN PATH GAMBAR
+          date: widget.asset?.date ?? DateFormat('yyyy-MM-dd').format(DateTime.now()),
+          kondisi: finalKondisi,
+        );
+
+        if (widget.asset == null) {
+          await _dbHelper.create(newAsset);
+        } else {
+          await _dbHelper.update(newAsset);
+        }
+        if (!mounted) return;
+        Navigator.pop(context); 
+
+      } catch (e) {
+        showDialog(context: context, builder: (ctx) => AlertDialog(content: Text("Error: $e")));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    List<String> currentKondisiList = _kategoriUtama == 'Aset Biologis' ? _kondisiHewan : _kondisiBarang;
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.assetEdit == null ? 'Tambah Aset Baru' : 'Edit Aset'),
-        backgroundColor: widget.themeColor, // <-- GUNAKAN WARNA TEMA DISINI
-        iconTheme: const IconThemeData(color: Colors.white), // Ikon back putih
-        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold), // Teks putih
+        title: Text(widget.asset == null ? 'Tambah Data' : 'Edit Data'),
+        backgroundColor: polbanBlue,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            DropdownButtonFormField<String>(
-              value: _kategori,
-              decoration: const InputDecoration(
-                labelText: 'Kategori Aset',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.category),
-              ),
-              items: _kategoriList.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (val) => _updateSatuanOtomatis(val!),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _namaController,
-              decoration: InputDecoration(
-                labelText: _kategori == 'Biologis' ? 'Nama Hewan / Kode' : 'Nama Aset / Alat',
-                hintText: _kategori == 'Biologis' ? 'Contoh: Ayam Petelur A1' : 'Contoh: Mesin Pencacah',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.label),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            TextField(
-              controller: _jenisController,
-              decoration: InputDecoration(
-                labelText: 'Jenis / Spesifikasi',
-                hintText: _kategori == 'Biologis' ? 'Contoh: Lele Sangkuriang' : 'Contoh: Diesel 5000 Watt',
-                border: const OutlineInputBorder(),
-                prefixIcon: const Icon(Icons.info_outline),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            Row(
-              children: [
-                Expanded(
-                  flex: 2,
-                  child: TextField(
-                    controller: _jumlahController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Jumlah',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.numbers),
-                    ),
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // --- AREA UPLOAD FOTO ---
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  width: double.infinity,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(15),
+                    border: Border.all(color: Colors.grey.shade400),
+                    image: _imagePath.isNotEmpty
+                        ? DecorationImage(
+                            image: FileImage(File(_imagePath)),
+                            fit: BoxFit.cover,
+                          )
+                        : null,
                   ),
+                  child: _imagePath.isEmpty
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo, size: 50, color: Colors.grey[600]),
+                            const SizedBox(height: 10),
+                            Text("Ketuk untuk upload foto", style: TextStyle(color: Colors.grey[600])),
+                          ],
+                        )
+                      : null,
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 1,
-                  child: TextField(
-                    controller: TextEditingController(text: _satuan),
-                    readOnly: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Satuan',
-                      border: OutlineInputBorder(),
-                      filled: true,
-                    ),
-                  ),
+              ),
+              const SizedBox(height: 25),
+
+              _buildSectionTitle("Kategori Aset"),
+              DropdownButtonFormField<String>(
+                value: _kategoriUtama,
+                decoration: _inputDecoration(icon: Icons.category),
+                items: _listKategoriUtama.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _kategoriUtama = val!;
+                    _jenisHewan = null;
+                    _tipeHewan = null;
+                    _kondisi = null;
+                  });
+                },
+              ),
+              const SizedBox(height: 20),
+
+              if (_kategoriUtama == 'Aset Biologis') ...[
+                _buildSectionTitle("Jenis Hewan"),
+                DropdownButtonFormField<String>(
+                  value: _jenisHewan,
+                  hint: const Text("Pilih (Ayam / Bebek / Lele)"),
+                  decoration: _inputDecoration(icon: Icons.grass), // ICON RUMPUT (NATURAL & SIMPEL)
+                  items: _listHewan.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
+                  onChanged: (val) => setState(() => _jenisHewan = val),
+                ),
+                const SizedBox(height: 15),
+                _buildSectionTitle("Tipe Produksi"),
+                DropdownButtonFormField<String>(
+                  value: _tipeHewan,
+                  hint: const Text("Pilih (Petelur / Pedaging)"),
+                  decoration: _inputDecoration(icon: Icons.layers), // ICON LAYERS (SIMPEL)
+                  items: _listTipe.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
+                  onChanged: (val) => setState(() => _tipeHewan = val),
+                ),
+              ] else ...[
+                _buildSectionTitle("Nama Barang / Alat"),
+                TextFormField(
+                  initialValue: _namaManual,
+                  decoration: _inputDecoration(icon: Icons.inventory_2),
+                  onSaved: (val) => _namaManual = val,
                 ),
               ],
-            ),
-            const SizedBox(height: 16),
 
-            TextField(
-              controller: _lokasiController,
-              decoration: const InputDecoration(
-                labelText: 'Lokasi Penempatan',
-                hintText: 'Contoh: Kolam 3 / Gudang A',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.pin_drop),
+              const SizedBox(height: 20),
+              
+              _buildSectionTitle("Kondisi Saat Ini"),
+              DropdownButtonFormField<String>(
+                value: _kondisi,
+                hint: Text(_kategoriUtama == 'Aset Biologis' ? "Cth: Sehat / Sakit" : "Cth: Baik / Rusak"),
+                decoration: _inputDecoration(icon: Icons.health_and_safety),
+                items: currentKondisiList.map((val) => DropdownMenuItem(value: val, child: Text(val))).toList(),
+                onChanged: (val) => setState(() => _kondisi = val),
               ),
-            ),
-            const SizedBox(height: 16),
 
-            DropdownButtonFormField<String>(
-              value: _kondisi,
-              decoration: const InputDecoration(
-                labelText: 'Kondisi Saat Ini',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.health_and_safety),
+              const SizedBox(height: 20),
+              _buildSectionTitle("Jumlah Stok"),
+              TextFormField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: _inputDecoration(icon: Icons.numbers, suffix: "Unit/Ekor"),
+                validator: (val) => val!.isEmpty ? 'Wajib diisi' : null,
               ),
-              items: _kondisiList.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-              onChanged: (val) => setState(() => _kondisi = val!),
-            ),
-            const SizedBox(height: 24),
 
-            ElevatedButton(
-              onPressed: () {
-                if (_namaController.text.isEmpty) return;
-
-                final assetBaru = AssetModel(
-                  id: widget.assetEdit?.id ?? DateTime.now().toString(),
-                  nama: _namaController.text,
-                  kategori: _kategori,
-                  jenis: _jenisController.text,
-                  jumlah: int.tryParse(_jumlahController.text) ?? 0,
-                  satuan: _satuan,
-                  lokasi: _lokasiController.text,
-                  kondisi: _kondisi,
-                );
-                Navigator.pop(context, assetBaru);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: widget.themeColor, // <-- GUNAKAN WARNA TEMA DISINI JUGA
-                foregroundColor: Colors.white,
-                minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 20),
+              _buildSectionTitle("Keterangan"),
+              TextFormField(
+                controller: _descController,
+                maxLines: 3,
+                decoration: _inputDecoration(),
               ),
-              child: const Text('SIMPAN ASET', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            ),
-          ],
+
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: polbanBlue,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _saveAsset,
+                  child: const Text('SIMPAN', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  InputDecoration _inputDecoration({IconData? icon, String? suffix}) {
+    return InputDecoration(
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade300),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: polbanBlue, width: 2),
+      ),
+      filled: true,
+      fillColor: Colors.grey[50],
+      prefixIcon: icon != null ? Icon(icon, color: polbanBlue) : null,
+      suffixText: suffix,
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
+      child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700])),
     );
   }
 }

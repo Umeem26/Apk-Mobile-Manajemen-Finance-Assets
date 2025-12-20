@@ -1,7 +1,18 @@
+import 'dart:io'; // Import wajib untuk cek Windows
 import 'package:flutter/material.dart';
-import 'list_asset_page.dart'; // Pastikan import ini ada
+import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // Import wajib database Windows
+import 'list_asset_page.dart';
+import 'finance_page.dart';
 
 void main() {
+  // --- KODE KHUSUS WINDOWS (WAJIB ADA) ---
+  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+    // Inisialisasi Database Desktop
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  }
+  // ----------------------------------------
+
   runApp(const MyApp());
 }
 
@@ -14,7 +25,6 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Ternak Cibeusi',
       theme: ThemeData(
-        // Skema Warna Polban (Biru & Oranye)
         primaryColor: const Color(0xFF1E549F),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1E549F),
@@ -24,7 +34,7 @@ class MyApp extends StatelessWidget {
         useMaterial3: true,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.white,
-          foregroundColor: Color(0xFF1E549F), // Teks Biru
+          foregroundColor: Color(0xFF1E549F),
           elevation: 2,
           shadowColor: Colors.black12,
         ),
@@ -42,13 +52,10 @@ class BerandaPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.grey.shade50,
       appBar: AppBar(
-        // PERUBAHAN DISINI: Ikon dihapus, sisa Teks saja
         title: const Text(
           'Ternak Cibeusi App',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
-        // Opsional: Jika ingin judul di tengah, aktifkan baris bawah ini
-        // centerTitle: true, 
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -65,10 +72,9 @@ class BerandaPage extends StatelessWidget {
             ),
             const SizedBox(height: 30),
 
-            // Grid Menu Utama
             Expanded(
               child: GridView.count(
-                crossAxisCount: 2, // 2 Kolom
+                crossAxisCount: 2,
                 crossAxisSpacing: 20,
                 mainAxisSpacing: 20,
                 childAspectRatio: 1.1, 
@@ -78,7 +84,7 @@ class BerandaPage extends StatelessWidget {
                     icon: Icons.domain_verification,
                     label: 'MANAJEMEN ASET',
                     subLabel: 'Kandang, Alat & Hewan',
-                    baseColor: const Color(0xFF1E549F), // Biru Polban
+                    baseColor: const Color(0xFF1E549F),
                     hoverColor: const Color(0xFF5A8FDC), 
                     iconColor: Colors.white,
                     onTap: () {
@@ -94,12 +100,13 @@ class BerandaPage extends StatelessWidget {
                     icon: Icons.monetization_on,
                     label: 'KEUANGAN',
                     subLabel: 'Pemasukan & Pengeluaran',
-                    baseColor: const Color(0xFFFA9C1B), // Oranye Polban
+                    baseColor: const Color(0xFFFA9C1B),
                     hoverColor: const Color(0xFFFBC02D),
                     iconColor: Colors.white,
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Fitur Keuangan akan segera hadir!')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const FinancePage()),
                       );
                     },
                   ),
@@ -113,7 +120,9 @@ class BerandaPage extends StatelessWidget {
                     hoverColor: Colors.grey.shade500,
                     iconColor: Colors.white,
                     onTap: () {
-                      // Nanti diisi
+                       ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Fitur Laporan akan segera hadir!")),
+                      );
                     },
                   ),
 
@@ -126,7 +135,9 @@ class BerandaPage extends StatelessWidget {
                     hoverColor: Colors.blueGrey.shade600,
                     iconColor: Colors.white,
                     onTap: () {
-                      // Nanti diisi
+                       ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Fitur Pengaturan akan segera hadir!")),
+                      );
                     },
                   ),
                 ],
@@ -139,7 +150,6 @@ class BerandaPage extends StatelessWidget {
   }
 }
 
-// --- WIDGET HOVER CARD ---
 class HoverMenuCard extends StatefulWidget {
   final IconData icon;
   final String label;

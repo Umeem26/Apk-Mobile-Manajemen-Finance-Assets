@@ -1,22 +1,47 @@
-// File: lib/asset_model.dart
 class AssetModel {
-  final String id; // Untuk unik ID (bisa pakai timestamp nanti)
-  final String nama; // Misal: "Kandang A1", "Mesin Pencacah", "Lele Sangkuriang"
-  final String kategori; // "Kandang", "Operasional", "Biologis"
-  final String jenis; // Detail: "Ayam Petelur", "Mesin Diesel", "Beton"
-  final int jumlah; // Total unit/ekor
-  final String satuan; // "Ekor", "Unit", "Blok"
-  final String lokasi; // "Area Belakang", "Gudang Pakan", "Kolam 1"
-  final String kondisi; // "Sehat", "Rusak", "Perlu Service", "Baik"
+  final int? id;
+  final String nama;
+  final String kategori;
+  final String deskripsi;
+  final int jumlah;
+  final String imagePath;
+  final String date;
+  final String kondisi; // KOLOM BARU
 
   AssetModel({
-    required this.id,
+    this.id,
     required this.nama,
     required this.kategori,
-    required this.jenis,
+    required this.deskripsi,
     required this.jumlah,
-    required this.satuan,
-    required this.lokasi,
-    required this.kondisi,
+    required this.imagePath,
+    required this.date,
+    required this.kondisi, // Wajib diisi
   });
+
+  factory AssetModel.fromMap(Map<String, dynamic> map) {
+    return AssetModel(
+      id: map['id'],
+      nama: map['name'], // Mapping dari Database (name) ke Model (nama)
+      kategori: map['category'],
+      deskripsi: map['description'],
+      jumlah: map['quantity'],
+      imagePath: map['imagePath'],
+      date: map['date'],
+      kondisi: map['condition'] ?? 'Baik', // Default jika null
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': nama,
+      'category': kategori,
+      'description': deskripsi,
+      'quantity': jumlah,
+      'imagePath': imagePath,
+      'date': date,
+      'condition': kondisi, // Simpan ke DB
+    };
+  }
 }

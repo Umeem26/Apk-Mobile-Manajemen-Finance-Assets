@@ -1,187 +1,198 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'asset_model.dart';
-import 'form_asset_page.dart';
+import 'database/database_helper.dart';
 import 'detail_asset_page.dart';
+import 'form_asset_page.dart';
 
 class ListAssetPage extends StatefulWidget {
-  final int initialTab;
-  const ListAssetPage({super.key, this.initialTab = 0});
+  const ListAssetPage({Key? key}) : super(key: key);
 
   @override
   State<ListAssetPage> createState() => _ListAssetPageState();
 }
 
-class _ListAssetPageState extends State<ListAssetPage> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _ListAssetPageState extends State<ListAssetPage> {
+  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
+  List<AssetModel> _allAssets = [];
+  bool _isLoading = true;
 
-  // Warna Khas Polban
-  final Color colorKandang = const Color(0xFF1E549F); // Biru
-  final Color colorOps = const Color(0xFFFA9C1B);     // Oranye
-  final Color colorBio = const Color(0xFF757575);     // Abu
-
-  List<AssetModel> allAssets = [
-    AssetModel(id: '1', nama: 'Kandang Ayam A', kategori: 'Kandang', jenis: 'Bambu 5x5m', jumlah: 1, satuan: 'Unit', lokasi: 'Area 1', kondisi: 'Baik'),
-    AssetModel(id: '2', nama: 'Mesin Bubur Sampah', kategori: 'Operasional', jenis: 'Diesel 10PK', jumlah: 1, satuan: 'Unit', lokasi: 'Gudang Maggot', kondisi: 'Perawatan/Service'),
-    AssetModel(id: '3', nama: 'Ayam Petelur', kategori: 'Biologis', jenis: 'Isa Brown', jumlah: 100, satuan: 'Ekor', lokasi: 'Kandang A', kondisi: 'Baik'),
-    AssetModel(id: '4', nama: 'Lele', kategori: 'Biologis', jenis: 'Sangkuriang', jumlah: 500, satuan: 'Ekor', lokasi: 'Kolam 2', kondisi: 'Baik'),
-  ];
+  final Color polbanBlue = const Color(0xFF1E549F);
+  final Color polbanOrange = const Color(0xFFFA9C1B);
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this, initialIndex: widget.initialTab);
-    _tabController.addListener(() {
-      setState(() {});
-    });
+    _refreshAssetList();
   }
 
-  Color _getActiveColor() {
-    if (_tabController.index == 0) return colorKandang;
-    if (_tabController.index == 1) return colorOps;
-    return colorBio;
+  void _refreshAssetList() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await _dbHelper.readAllAssets();
+      if (mounted) {
+        setState(() {
+          _allAssets = data;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  List<AssetModel> _getAssetsByCategory(String categoryName) {
+    return _allAssets.where((asset) => asset.kategori == categoryName).toList();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Daftar Aset', style: TextStyle(color: Colors.white)),
-        backgroundColor: _getActiveColor(),
-        iconTheme: const IconThemeData(color: Colors.white),
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
-          indicatorColor: Colors.white,
-          indicatorWeight: 4,
-          tabs: const [
-            Tab(icon: Icon(Icons.house_siding), text: 'KANDANG'),
-            Tab(icon: Icon(Icons.settings), text: 'OPERASIONAL'),
-            Tab(icon: Icon(Icons.pets), text: 'BIOLOGIS'),
-          ],
+    return DefaultTabController(
+      length: 3, 
+      child: Scaffold(
+        backgroundColor: Colors.grey[100],
+        appBar: AppBar(
+          title: const Text('Manajemen Aset', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: polbanBlue,
+          centerTitle: true,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          bottom: TabBar(
+            indicatorColor: polbanOrange,
+            indicatorWeight: 4,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white60,
+            labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+            tabs: const [
+              Tab(text: "BIOLOGIS", icon: Icon(Icons.grass)), // ICON SIMPEL
+              Tab(text: "LOGISTIK", icon: Icon(Icons.layers)), // ICON SIMPEL
+              Tab(text: "INFRASTRUKTUR", icon: Icon(Icons.build_circle)), // ICON SIMPEL
+            ],
+          ),
         ),
-      ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildAssetList('Kandang', colorKandang),
-          _buildAssetList('Operasional', colorOps),
-          _buildAssetList('Biologis', colorBio),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: _getActiveColor(),
-        child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () async {
-          // PERUBAHAN DISINI: Kirim warna aktif ke FormAssetPage
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => FormAssetPage(themeColor: _getActiveColor())),
-          );
-          if (result != null && result is AssetModel) {
-            setState(() { allAssets.add(result); });
-          }
-        },
+        body: _isLoading
+            ? Center(child: CircularProgressIndicator(color: polbanBlue))
+            : TabBarView(
+                children: [
+                  _buildAssetList(_getAssetsByCategory('Aset Biologis'), 'Hewan Ternak Kosong', Icons.grass, polbanBlue),
+                  _buildAssetList(_getAssetsByCategory('Logistik'), 'Stok Pakan Kosong', Icons.layers, Colors.green),
+                  _buildAssetList(_getAssetsByCategory('Infrastruktur'), 'Alat & Kandang Kosong', Icons.build_circle, polbanOrange),
+                ],
+              ),
+        floatingActionButton: FloatingActionButton.extended(
+          backgroundColor: polbanBlue,
+          icon: const Icon(Icons.add, color: Colors.white),
+          label: const Text("Tambah Aset", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          onPressed: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const FormAssetPage()),
+            );
+            _refreshAssetList();
+          },
+        ),
       ),
     );
   }
 
-  Widget _buildAssetList(String kategoriFilter, Color temaWarna) {
-    final filteredAssets = allAssets.where((asset) => asset.kategori == kategoriFilter).toList();
-
-    if (filteredAssets.isEmpty) {
+  Widget _buildAssetList(List<AssetModel> assets, String emptyMsg, IconData defaultIcon, Color themeColor) {
+    if (assets.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.folder_off, size: 80, color: Colors.grey.shade300),
-            const SizedBox(height: 10),
-            Text('Belum ada data $kategoriFilter', style: const TextStyle(color: Colors.grey)),
+            Container(
+              padding: const EdgeInsets.all(25),
+              decoration: BoxDecoration(
+                color: themeColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.folder_open, size: 70, color: themeColor.withOpacity(0.5)),
+            ),
+            const SizedBox(height: 20),
+            Text(emptyMsg, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: filteredAssets.length,
+      padding: const EdgeInsets.all(16),
+      itemCount: assets.length,
       itemBuilder: (context, index) {
-        final item = filteredAssets[index];
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-          margin: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => DetailAssetPage(asset: item, temaWarna: temaWarna)),
-              );
-               if (result == 'hapus') {
-                setState(() => allAssets.remove(item));
-              } else if (result is AssetModel) {
-                setState(() {
-                  final idx = allAssets.indexWhere((element) => element.id == result.id);
-                  if (idx != -1) allAssets[idx] = result;
-                });
-              }
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Row(
-                children: [
-                  Container(
-                    width: 50, height: 50,
-                    decoration: BoxDecoration(
-                      color: temaWarna.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(_getIcon(item.kategori), color: temaWarna),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(item.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 4),
-                        Text('${item.jenis} • ${item.jumlah} ${item.satuan}', style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getWarnaStatus(item.kondisi).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      item.kondisi,
-                      style: TextStyle(color: _getWarnaStatus(item.kondisi), fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                  )
-                ],
+        final asset = assets[index];
+        final bool hasImage = asset.imagePath.isNotEmpty && File(asset.imagePath).existsSync();
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 15),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blueGrey.withOpacity(0.1),
+                blurRadius: 10,
+                offset: const Offset(0, 5),
               ),
+            ],
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.all(12),
+            leading: Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: hasImage ? Colors.transparent : themeColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                image: hasImage
+                    ? DecorationImage(
+                        image: FileImage(File(asset.imagePath)),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: !hasImage
+                  ? Icon(defaultIcon, color: themeColor, size: 30) // Pakai Ikon Tab
+                  : null,
             ),
+            title: Text(
+              asset.nama,
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: polbanBlue),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: polbanOrange,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        "${asset.jumlah} Unit",
+                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text("•  ${asset.kondisi}", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                  ],
+                ),
+              ],
+            ),
+            trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: Colors.grey[300]),
+            onTap: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DetailAssetPage(asset: asset)),
+              );
+              _refreshAssetList();
+            },
           ),
         );
       },
     );
-  }
-
-  Color _getWarnaStatus(String kondisi) {
-    if (kondisi == 'Baik') return Colors.green;
-    if (kondisi == 'Rusak/Sakit') return Colors.red;
-    return Colors.orange;
-  }
-
-  IconData _getIcon(String kategori) {
-    if (kategori == 'Biologis') return Icons.pets;
-    if (kategori == 'Operasional') return Icons.settings;
-    return Icons.house_siding;
   }
 }
