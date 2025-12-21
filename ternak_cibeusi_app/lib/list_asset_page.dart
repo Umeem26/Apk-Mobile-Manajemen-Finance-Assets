@@ -63,10 +63,11 @@ class _ListAssetPageState extends State<ListAssetPage> {
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white60,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            // TAB NAME DIUBAH DISINI
             tabs: const [
-              Tab(text: "BIOLOGIS", icon: Icon(Icons.grass)),
-              Tab(text: "OPERASIONAL", icon: Icon(Icons.layers)), // GANTI NAMA TAB
-              Tab(text: "INFRASTRUKTUR", icon: Icon(Icons.build_circle)),
+              Tab(text: "TERNAK", icon: Icon(Icons.pets)), 
+              Tab(text: "OPS. HABIS PAKAI", icon: Icon(Icons.inventory)), 
+              Tab(text: "ASET TETAP", icon: Icon(Icons.domain)),
             ],
           ),
         ),
@@ -74,10 +75,10 @@ class _ListAssetPageState extends State<ListAssetPage> {
             ? Center(child: CircularProgressIndicator(color: polbanBlue))
             : TabBarView(
                 children: [
-                  _buildAssetList(_getAssetsByCategory('Aset Biologis'), 'Hewan Ternak Kosong', Icons.grass, polbanBlue),
-                  // FILTER BERDASARKAN "OPERASIONAL"
-                  _buildAssetList(_getAssetsByCategory('Operasional'), 'Data Operasional Kosong', Icons.layers, Colors.green),
-                  _buildAssetList(_getAssetsByCategory('Infrastruktur'), 'Alat & Kandang Kosong', Icons.build_circle, polbanOrange),
+                  // FILTER DENGAN NAMA KATEGORI BARU
+                  _buildAssetList(_getAssetsByCategory('Ternak'), 'Belum ada data Ternak', Icons.pets, polbanBlue),
+                  _buildAssetList(_getAssetsByCategory('Operasional Habis Pakai'), 'Belum ada stok Pakan/Obat', Icons.inventory, Colors.green),
+                  _buildAssetList(_getAssetsByCategory('Aset Tetap'), 'Belum ada Aset Tetap', Icons.domain, polbanOrange),
                 ],
               ),
         floatingActionButton: FloatingActionButton.extended(
@@ -130,11 +131,7 @@ class _ListAssetPageState extends State<ListAssetPage> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(15),
             boxShadow: [
-              BoxShadow(
-                color: Colors.blueGrey.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
+              BoxShadow(color: Colors.blueGrey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
             ],
           ),
           child: ListTile(
@@ -146,15 +143,10 @@ class _ListAssetPageState extends State<ListAssetPage> {
                 color: hasImage ? Colors.transparent : themeColor.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(12),
                 image: hasImage
-                    ? DecorationImage(
-                        image: FileImage(File(asset.imagePath)),
-                        fit: BoxFit.cover,
-                      )
+                    ? DecorationImage(image: FileImage(File(asset.imagePath)), fit: BoxFit.cover)
                     : null,
               ),
-              child: !hasImage
-                  ? Icon(defaultIcon, color: themeColor, size: 30)
-                  : null,
+              child: !hasImage ? Icon(defaultIcon, color: themeColor, size: 30) : null,
             ),
             title: Text(
               asset.nama,
@@ -168,10 +160,7 @@ class _ListAssetPageState extends State<ListAssetPage> {
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: polbanOrange,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
+                      decoration: BoxDecoration(color: polbanOrange, borderRadius: BorderRadius.circular(20)),
                       child: Text(
                         "${asset.jumlah} Unit",
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),

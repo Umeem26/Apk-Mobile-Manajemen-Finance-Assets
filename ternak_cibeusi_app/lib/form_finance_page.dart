@@ -1,7 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'transaction_model.dart';
 import 'database/database_helper.dart';
+
+// --- CURRENCY FORMATTER (Agar Input jadi 1.000.000) ---
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.selection.baseOffset == 0) return newValue;
+    double value = double.parse(newValue.text.replaceAll('.', '').replaceAll(',', ''));
+    final formatter = NumberFormat("#,###", "id_ID");
+    String newText = formatter.format(value).replaceAll(',', '.');
+    return newValue.copyWith(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newText.length),
+    );
+  }
+}
 
 class FormFinancePage extends StatefulWidget {
   const FormFinancePage({Key? key}) : super(key: key);
@@ -15,32 +31,37 @@ class _FormFinancePageState extends State<FormFinancePage> {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
   final Color polbanBlue = const Color(0xFF1E549F);
 
-  // Controller
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   
-  String _type = 'OUT'; // Default Pengeluaran
+  String _type = 'OUT'; 
   DateTime _selectedDate = DateTime.now();
-
-  // --- DAFTAR AKUN (CHART OF ACCOUNTS) ---
-  // Inilah yang menghubungkan User dengan Sistem Akuntansi di belakang
   String? _selectedCategory;
-  
-  final List<String> _incomeCategories = [
-    'Penjualan Hasil Ternak',
-    'Penjualan Pupuk/Limbah',
-    'Modal Awal',            // Masuk ke Equitas
-    'Pendapatan Lainnya'
+
+  // --- DAFTAR TRANSAKSI SESUAI EXCEL (RHPP) ---
+  // Kita sesuaikan dengan kolom "Keterangan" di Excel
+  final List<String> _incomeTransactions = [
+    'Setor Modal',
+    'Jual Ayam Tunai',
+    'Jual Ayam Kredit',
+    'Terima Pelunasan Piutang',
+    'Pendapatan Lain-lain'
   ];
 
-  final List<String> _expenseCategories = [
-    'Biaya Pakan',
-    'Biaya Obat & Vitamin',
-    'Biaya Gaji Pegawai',
-    'Biaya Listrik & Air',
-    'Biaya Operasional Lain',
-    'Pembelian Aset Tetap',  // Masuk ke Aset (Kandang/Alat)
-    'Prive (Tarik Modal)'    // Mengurangi Equitas
+  final List<String> _expenseTransactions = [
+    'Beli Ayam Tunai',
+    'Beli Ayam Kredit',
+    'Beli Pakan Tunai Pre Starter',
+    'Beli Pakan Tunai Starter',
+    'Beli Pakan Tunai Finisher',
+    'Beli Obat & Vitamin',
+    'Beli Perlengkapan Kandang',
+    'Bayar Listrik dan Air',
+    'Bayar Gaji',
+    'Bayar Perawatan Kandang',
+    'Bayar Utang',
+    'Biaya Lain-lain',
+    'Prive (Tarik Modal)' 
   ];
 
   @override
@@ -56,24 +77,20 @@ class _FormFinancePageState extends State<FormFinancePage> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: polbanBlue)),
-          child: child!,
-        );
-      },
+      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: polbanBlue)), child: child!),
     );
-    if (picked != null) {
-      setState(() => _selectedDate = picked);
-    }
+    if (picked != null) setState(() => _selectedDate = picked);
   }
 
   void _saveTransaction() async {
     if (_formKey.currentState!.validate()) {
+      // Hilangkan titik sebelum simpan ke database (1.000.000 -> 1000000)
+      String cleanAmount = _amountController.text.replaceAll('.', '');
+      
       final newTransaction = TransactionModel(
         type: _type,
-        amount: double.parse(_amountController.text),
-        category: _selectedCategory!, // Ambil dari Dropdown
+        amount: double.parse(cleanAmount),
+        category: _selectedCategory!, // Simpan Jenis Transaksi
         description: _descController.text,
         date: DateFormat('yyyy-MM-dd').format(_selectedDate),
       );
@@ -86,8 +103,7 @@ class _FormFinancePageState extends State<FormFinancePage> {
 
   @override
   Widget build(BuildContext context) {
-    // Tentukan list kategori berdasarkan tipe (Masuk/Keluar)
-    List<String> currentCategories = _type == 'IN' ? _incomeCategories : _expenseCategories;
+    List<String> currentTransactions = _type == 'IN' ? _incomeTransactions : _expenseTransactions;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -95,7 +111,6 @@ class _FormFinancePageState extends State<FormFinancePage> {
         title: const Text('Catat Transaksi'),
         backgroundColor: polbanBlue,
         foregroundColor: Colors.white,
-        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -109,12 +124,7 @@ class _FormFinancePageState extends State<FormFinancePage> {
                 children: [
                   Expanded(
                     child: InkWell(
-                      onTap: () {
-                        setState(() {
-                          _type = 'OUT';
-                          _selectedCategory = null; // Reset kategori saat ganti tipe
-                        });
-                      },
+                      onTap: () => setState(() { _type = 'OUT'; _selectedCategory = null; }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
@@ -125,7 +135,6 @@ class _FormFinancePageState extends State<FormFinancePage> {
                         child: Column(
                           children: [
                             Icon(Icons.arrow_upward, color: _type == 'OUT' ? Colors.white : Colors.grey),
-                            const SizedBox(height: 5),
                             Text("Pengeluaran", style: TextStyle(fontWeight: FontWeight.bold, color: _type == 'OUT' ? Colors.white : Colors.grey)),
                           ],
                         ),
@@ -135,12 +144,7 @@ class _FormFinancePageState extends State<FormFinancePage> {
                   const SizedBox(width: 15),
                   Expanded(
                     child: InkWell(
-                      onTap: () {
-                         setState(() {
-                          _type = 'IN';
-                          _selectedCategory = null; 
-                        });
-                      },
+                      onTap: () => setState(() { _type = 'IN'; _selectedCategory = null; }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
@@ -151,7 +155,6 @@ class _FormFinancePageState extends State<FormFinancePage> {
                         child: Column(
                           children: [
                             Icon(Icons.arrow_downward, color: _type == 'IN' ? Colors.white : Colors.grey),
-                            const SizedBox(height: 5),
                             Text("Pemasukan", style: TextStyle(fontWeight: FontWeight.bold, color: _type == 'IN' ? Colors.white : Colors.grey)),
                           ],
                         ),
@@ -162,30 +165,29 @@ class _FormFinancePageState extends State<FormFinancePage> {
               ),
               const SizedBox(height: 25),
 
-              // 2. Nominal
+              // 2. Jenis Transaksi (DROPDOWN)
+              _buildSectionTitle("Jenis Transaksi"),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                hint: const Text("Pilih transaksi (Cth: Jual Ayam Tunai)"),
+                decoration: _inputDecoration(icon: Icons.receipt_long),
+                items: currentTransactions.map((String val) {
+                  return DropdownMenuItem(value: val, child: Text(val));
+                }).toList(),
+                onChanged: (newValue) => setState(() => _selectedCategory = newValue),
+                validator: (val) => val == null ? 'Wajib dipilih' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // 3. Nominal (FORMATTER TITIK)
               _buildSectionTitle("Nominal Uang"),
               TextFormField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
+                // PANGGIL FORMATTER DISINI
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
                 decoration: _inputDecoration(icon: Icons.attach_money, prefix: "Rp "),
                 validator: (val) => val!.isEmpty ? 'Wajib diisi' : null,
-              ),
-              const SizedBox(height: 20),
-
-              // 3. Kategori (DROPDOWN - KUNCI AKUNTANSI)
-              _buildSectionTitle("Kategori Transaksi (Akun)"),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                hint: const Text("Pilih akun transaksi..."),
-                decoration: _inputDecoration(icon: Icons.category),
-                items: currentCategories.map((String category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category),
-                  );
-                }).toList(),
-                onChanged: (newValue) => setState(() => _selectedCategory = newValue),
-                validator: (val) => val == null ? 'Wajib dipilih' : null,
               ),
               const SizedBox(height: 20),
 
@@ -208,14 +210,6 @@ class _FormFinancePageState extends State<FormFinancePage> {
                     ],
                   ),
                 ),
-              ),
-              
-              const SizedBox(height: 20),
-              _buildSectionTitle("Catatan (Opsional)"),
-              TextFormField(
-                controller: _descController,
-                maxLines: 2,
-                decoration: _inputDecoration(icon: Icons.note, hint: "Keterangan tambahan..."),
               ),
               const SizedBox(height: 30),
 
@@ -241,11 +235,9 @@ class _FormFinancePageState extends State<FormFinancePage> {
   InputDecoration _inputDecoration({IconData? icon, String? prefix, String? hint}) {
     return InputDecoration(
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.grey.shade300)),
-      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: polbanBlue, width: 2)),
       filled: true,
       fillColor: Colors.grey[50],
-      prefixIcon: icon != null ? Icon(icon, color: polbanBlue) : null,
+      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF1E549F)) : null,
       prefixText: prefix,
       hintText: hint,
     );
