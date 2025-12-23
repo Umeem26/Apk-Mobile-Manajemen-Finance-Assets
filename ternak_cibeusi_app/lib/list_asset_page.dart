@@ -30,66 +30,50 @@ class _ListAssetPageState extends State<ListAssetPage> {
     setState(() => _isLoading = true);
     try {
       final data = await _dbHelper.readAllAssets();
-      if (mounted) {
-        setState(() {
-          _allAssets = data;
-          _isLoading = false;
-        });
-      }
+      if (mounted) setState(() { _allAssets = data; _isLoading = false; });
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  List<AssetModel> _getAssetsByCategory(String categoryName) {
-    return _allAssets.where((asset) => asset.kategori == categoryName).toList();
-  }
+  List<AssetModel> _getAssetsByCategory(String categoryName) => _allAssets.where((asset) => asset.kategori == categoryName).toList();
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 3, 
       child: Scaffold(
-        backgroundColor: Colors.grey[100],
+        backgroundColor: const Color(0xFFF5F7FA),
         appBar: AppBar(
-          title: const Text('Manajemen Aset', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          title: const Text('Manajemen Aset', style: TextStyle(fontWeight: FontWeight.bold)),
           backgroundColor: polbanBlue,
+          foregroundColor: Colors.white,
           centerTitle: true,
           elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
           bottom: TabBar(
             indicatorColor: polbanOrange,
             indicatorWeight: 4,
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white60,
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            // TAB NAME DIUBAH DISINI
-            tabs: const [
-              Tab(text: "TERNAK", icon: Icon(Icons.pets)), 
-              Tab(text: "OPS. HABIS PAKAI", icon: Icon(Icons.inventory)), 
-              Tab(text: "ASET TETAP", icon: Icon(Icons.domain)),
-            ],
+            tabs: const [Tab(text: "TERNAK"), Tab(text: "OPS. HABIS PAKAI"), Tab(text: "ASET TETAP")],
           ),
         ),
         body: _isLoading
             ? Center(child: CircularProgressIndicator(color: polbanBlue))
             : TabBarView(
                 children: [
-                  // FILTER DENGAN NAMA KATEGORI BARU
-                  _buildAssetList(_getAssetsByCategory('Ternak'), 'Belum ada data Ternak', Icons.pets, polbanBlue),
-                  _buildAssetList(_getAssetsByCategory('Operasional Habis Pakai'), 'Belum ada stok Pakan/Obat', Icons.inventory, Colors.green),
-                  _buildAssetList(_getAssetsByCategory('Aset Tetap'), 'Belum ada Aset Tetap', Icons.domain, polbanOrange),
+                  _buildAssetList(_getAssetsByCategory('Ternak'), 'Belum ada ternak', Icons.pets, polbanBlue),
+                  _buildAssetList(_getAssetsByCategory('Operasional Habis Pakai'), 'Belum ada stok', Icons.inventory, Colors.green),
+                  _buildAssetList(_getAssetsByCategory('Aset Tetap'), 'Belum ada aset', Icons.domain, polbanOrange),
                 ],
               ),
         floatingActionButton: FloatingActionButton.extended(
           backgroundColor: polbanBlue,
           icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text("Tambah Aset", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          label: const Text("Tambah", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           onPressed: () async {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const FormAssetPage()),
-            );
+            await Navigator.push(context, MaterialPageRoute(builder: (context) => const FormAssetPage()));
             _refreshAssetList();
           },
         ),
@@ -103,23 +87,16 @@ class _ListAssetPageState extends State<ListAssetPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              padding: const EdgeInsets.all(25),
-              decoration: BoxDecoration(
-                color: themeColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(Icons.folder_open, size: 70, color: themeColor.withOpacity(0.5)),
-            ),
-            const SizedBox(height: 20),
-            Text(emptyMsg, style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+            Icon(defaultIcon, size: 60, color: Colors.grey[300]),
+            const SizedBox(height: 15),
+            Text(emptyMsg, style: TextStyle(color: Colors.grey[500])),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       itemCount: assets.length,
       itemBuilder: (context, index) {
         final asset = assets[index];
@@ -129,57 +106,58 @@ class _ListAssetPageState extends State<ListAssetPage> {
           margin: const EdgeInsets.only(bottom: 15),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: [
-              BoxShadow(color: Colors.blueGrey.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 5)),
-            ],
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.blueGrey.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))],
           ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.all(12),
-            leading: Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: hasImage ? Colors.transparent : themeColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                image: hasImage
-                    ? DecorationImage(image: FileImage(File(asset.imagePath)), fit: BoxFit.cover)
-                    : null,
-              ),
-              child: !hasImage ? Icon(defaultIcon, color: themeColor, size: 30) : null,
-            ),
-            title: Text(
-              asset.nama,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: polbanBlue),
-            ),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 6),
-                Row(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () async {
+                await Navigator.push(context, MaterialPageRoute(builder: (context) => DetailAssetPage(asset: asset)));
+                _refreshAssetList();
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Row(
                   children: [
+                    // GAMBAR / IKON
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(color: polbanOrange, borderRadius: BorderRadius.circular(20)),
-                      child: Text(
-                        "${asset.jumlah} Unit",
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                      width: 70, height: 70,
+                      decoration: BoxDecoration(
+                        color: hasImage ? Colors.transparent : themeColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(15),
+                        image: hasImage ? DecorationImage(image: FileImage(File(asset.imagePath)), fit: BoxFit.cover) : null,
+                      ),
+                      child: !hasImage ? Icon(defaultIcon, color: themeColor, size: 30) : null,
+                    ),
+                    const SizedBox(width: 15),
+                    // TEKS
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(asset.nama, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3436))),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(color: polbanOrange.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                                child: Text("${asset.jumlah} ${asset.satuan ?? 'Unit'}", style: TextStyle(color: polbanOrange, fontSize: 11, fontWeight: FontWeight.bold)),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(asset.kondisi, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Text("•  ${asset.kondisi}", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
                 ),
-              ],
+              ),
             ),
-            trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: Colors.grey[300]),
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => DetailAssetPage(asset: asset)),
-              );
-              _refreshAssetList();
-            },
           ),
         );
       },

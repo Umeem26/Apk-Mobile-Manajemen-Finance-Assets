@@ -1,26 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'transaction_model.dart';
 import 'database/database_helper.dart';
-
-// --- CURRENCY FORMATTER (Agar Input jadi 1.000.000) ---
-class CurrencyInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
-    if (newValue.selection.baseOffset == 0) return newValue;
-    double value = double.parse(newValue.text.replaceAll('.', '').replaceAll(',', ''));
-    final formatter = NumberFormat("#,###", "id_ID");
-    String newText = formatter.format(value).replaceAll(',', '.');
-    return newValue.copyWith(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newText.length),
-    );
-  }
-}
+import 'transaction_model.dart';
 
 class FormFinancePage extends StatefulWidget {
-  const FormFinancePage({Key? key}) : super(key: key);
+  final TransactionModel? transaction; 
+  const FormFinancePage({Key? key, this.transaction}) : super(key: key);
 
   @override
   State<FormFinancePage> createState() => _FormFinancePageState();
@@ -28,188 +14,225 @@ class FormFinancePage extends StatefulWidget {
 
 class _FormFinancePageState extends State<FormFinancePage> {
   final _formKey = GlobalKey<FormState>();
-  final DatabaseHelper _dbHelper = DatabaseHelper.instance;
-  final Color polbanBlue = const Color(0xFF1E549F);
-
+  
   final TextEditingController _amountController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
-  
-  String _type = 'OUT'; 
-  DateTime _selectedDate = DateTime.now();
-  String? _selectedCategory;
+  final TextEditingController _dateController = TextEditingController();
 
-  // --- DAFTAR TRANSAKSI SESUAI EXCEL (RHPP) ---
-  // Kita sesuaikan dengan kolom "Keterangan" di Excel
-  final List<String> _incomeTransactions = [
-    'Setor Modal',
-    'Jual Ayam Tunai',
-    'Jual Ayam Kredit',
-    'Terima Pelunasan Piutang',
-    'Pendapatan Lain-lain'
+  String _selectedType = 'IN'; 
+  String _selectedCategory = 'Jual Hasil Ternak Tunai'; 
+  
+  // --- KATEGORI (SESUAI EXCEL & LOGIKA DATABASE) ---
+  
+  // PEMASUKAN
+  final List<String> _incomeCategories = [
+    'Jual Hasil Ternak Tunai',    
+    'Jual Hasil Ternak Kredit',   // Menambah Piutang
+    'Terima Pelunasan Piutang',   // Mengurangi Piutang
+    'Setor Modal Pribadi',        
+    'Setor Modal Pinjaman',       // Menambah Utang
+    'Pendapatan Lain-lain'        
   ];
 
-  final List<String> _expenseTransactions = [
-    'Beli Ayam Tunai',
-    'Beli Ayam Kredit',
-    'Beli Pakan Tunai Pre Starter',
-    'Beli Pakan Tunai Starter',
-    'Beli Pakan Tunai Finisher',
-    'Beli Obat & Vitamin',
+  // PENGELUARAN
+  final List<String> _expenseCategories = [
+    // -- BELI ASET (Menambah Persediaan, Tidak Masuk Laba Rugi) --
+    'Beli Ternak Tunai',          
+    'Beli Ternak Kredit',         // Menambah Utang
+    'Beli Pakan Tunai',           
+    'Beli Pakan Kredit',          // Menambah Utang
+    'Beli Obat & Vitamin',        
     'Beli Perlengkapan Kandang',
-    'Bayar Listrik dan Air',
-    'Bayar Gaji',
-    'Bayar Perawatan Kandang',
-    'Bayar Utang',
-    'Biaya Lain-lain',
-    'Prive (Tarik Modal)' 
+    'Beli Peralatan Kandang',  
+    'Beli Mesin',                 
+    
+    // -- BIAYA OPERASIONAL (Masuk Laba Rugi) --
+    'Bayar Listrik dan Air',      
+    'Bayar Gaji / Upah',          
+    'Bayar Perawatan Kandang',    
+    'Sewa Lahan',                 
+    'Biaya Lain-lain',            
+    
+    // -- PEMAKAIAN (Mengurangi Persediaan -> Menjadi Beban) --
+    'Pemakaian Pakan',            
+    'Pemakaian Obat & Vitamin',   
+    'Pakai Perlengkapan Kandang', 
+    'Biaya DOC (Saat Jual)',      // HPP Bibit Ayam
+    
+    // -- KEWAJIBAN & PRIVE --
+    'Bayar Utang',                
+    'Bayar Pinjaman Modal',       
+    'Prive (Tarik Modal)',        
   ];
 
   @override
-  void dispose() {
-    _amountController.dispose();
-    _descController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    if (widget.transaction != null) {
+      _loadExistingData();
+    } else {
+      _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      _selectedType = 'IN';
+      _selectedCategory = _incomeCategories[0];
+    }
   }
 
-  void _pickDate() async {
-    final picked = await showDatePicker(
+  void _loadExistingData() {
+    final t = widget.transaction!;
+    _selectedType = t.type;
+    final formatter = NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0);
+    _amountController.text = formatter.format(t.amount).trim(); 
+    _selectedCategory = t.category;
+    _descController.text = t.description;
+    _dateController.text = t.date;
+    
+    if (_selectedType == 'IN' && !_incomeCategories.contains(_selectedCategory)) {
+      _incomeCategories.add(_selectedCategory);
+    } else if (_selectedType == 'OUT' && !_expenseCategories.contains(_selectedCategory)) {
+      _expenseCategories.add(_selectedCategory);
+    }
+  }
+
+  Future<void> _selectDate() async {
+    DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.light(primary: polbanBlue)), child: child!),
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2100),
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+    if (picked != null) {
+      setState(() {
+        _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+      });
+    }
   }
 
   void _saveTransaction() async {
     if (_formKey.currentState!.validate()) {
-      // Hilangkan titik sebelum simpan ke database (1.000.000 -> 1000000)
-      String cleanAmount = _amountController.text.replaceAll('.', '');
+      String cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '').replaceAll('Rp', '').trim();
+      final amount = double.tryParse(cleanAmount) ?? 0;
       
       final newTransaction = TransactionModel(
-        type: _type,
-        amount: double.parse(cleanAmount),
-        category: _selectedCategory!, // Simpan Jenis Transaksi
+        id: widget.transaction?.id,
+        type: _selectedType,
+        amount: amount,
+        category: _selectedCategory,
         description: _descController.text,
-        date: DateFormat('yyyy-MM-dd').format(_selectedDate),
+        date: _dateController.text,
       );
 
-      await _dbHelper.insertTransaction(newTransaction);
-      if (!mounted) return;
-      Navigator.pop(context, true); 
+      if (widget.transaction == null) {
+        await DatabaseHelper.instance.insertTransaction(newTransaction);
+      } else {
+        await DatabaseHelper.instance.updateTransaction(newTransaction);
+      }
+
+      if (mounted) Navigator.pop(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    List<String> currentTransactions = _type == 'IN' ? _incomeTransactions : _expenseTransactions;
+    bool isEdit = widget.transaction != null;
+    List<String> currentCategories = _selectedType == 'IN' ? _incomeCategories : _expenseCategories;
+
+    if (!currentCategories.contains(_selectedCategory)) {
+      _selectedCategory = currentCategories[0];
+    }
 
     return Scaffold(
-      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Catat Transaksi'),
-        backgroundColor: polbanBlue,
+        title: Text(isEdit ? "Edit Data" : "Catat Transaksi"),
+        backgroundColor: const Color(0xFF1E549F),
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(20),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 1. Pilihan Jenis (IN/OUT)
+              // SWITCH TYPE
               Row(
                 children: [
                   Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() { _type = 'OUT'; _selectedCategory = null; }),
+                    child: GestureDetector(
+                      onTap: () => setState(() { _selectedType = 'IN'; _selectedCategory = _incomeCategories[0]; }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
-                          color: _type == 'OUT' ? Colors.redAccent : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _type == 'OUT' ? Colors.red : Colors.grey.shade300),
+                          color: _selectedType == 'IN' ? Colors.green : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.arrow_upward, color: _type == 'OUT' ? Colors.white : Colors.grey),
-                            Text("Pengeluaran", style: TextStyle(fontWeight: FontWeight.bold, color: _type == 'OUT' ? Colors.white : Colors.grey)),
-                          ],
-                        ),
+                        child: Center(child: Text("PEMASUKAN", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedType == 'IN' ? Colors.white : Colors.grey))),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 15),
+                  const SizedBox(width: 10),
                   Expanded(
-                    child: InkWell(
-                      onTap: () => setState(() { _type = 'IN'; _selectedCategory = null; }),
+                    child: GestureDetector(
+                      onTap: () => setState(() { _selectedType = 'OUT'; _selectedCategory = _expenseCategories[0]; }),
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 15),
                         decoration: BoxDecoration(
-                          color: _type == 'IN' ? Colors.green : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _type == 'IN' ? Colors.green[700]! : Colors.grey.shade300),
+                          color: _selectedType == 'OUT' ? Colors.red : Colors.grey[200],
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Column(
-                          children: [
-                            Icon(Icons.arrow_downward, color: _type == 'IN' ? Colors.white : Colors.grey),
-                            Text("Pemasukan", style: TextStyle(fontWeight: FontWeight.bold, color: _type == 'IN' ? Colors.white : Colors.grey)),
-                          ],
-                        ),
+                        child: Center(child: Text("PENGELUARAN", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedType == 'OUT' ? Colors.white : Colors.grey))),
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 25),
-
-              // 2. Jenis Transaksi (DROPDOWN)
-              _buildSectionTitle("Jenis Transaksi"),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                hint: const Text("Pilih transaksi (Cth: Jual Ayam Tunai)"),
-                decoration: _inputDecoration(icon: Icons.receipt_long),
-                items: currentTransactions.map((String val) {
-                  return DropdownMenuItem(value: val, child: Text(val));
-                }).toList(),
-                onChanged: (newValue) => setState(() => _selectedCategory = newValue),
-                validator: (val) => val == null ? 'Wajib dipilih' : null,
-              ),
               const SizedBox(height: 20),
 
-              // 3. Nominal (FORMATTER TITIK)
-              _buildSectionTitle("Nominal Uang"),
+              // NOMINAL
               TextFormField(
                 controller: _amountController,
                 keyboardType: TextInputType.number,
-                // PANGGIL FORMATTER DISINI
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                decoration: _inputDecoration(icon: Icons.attach_money, prefix: "Rp "),
-                validator: (val) => val!.isEmpty ? 'Wajib diisi' : null,
+                decoration: const InputDecoration(
+                  labelText: "Nominal (Rp)",
+                  border: OutlineInputBorder(),
+                  prefixText: "Rp ",
+                ),
+                validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 15),
 
-              // 4. Tanggal
-              _buildSectionTitle("Tanggal"),
-              InkWell(
-                onTap: _pickDate,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 15),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.calendar_today, color: polbanBlue),
-                      const SizedBox(width: 12),
-                      Text(DateFormat('dd MMMM yyyy').format(_selectedDate), style: const TextStyle(fontSize: 16)),
-                    ],
+              // KATEGORI
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: "Kategori Transaksi", border: OutlineInputBorder()),
+                items: currentCategories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat, overflow: TextOverflow.ellipsis))).toList(),
+                onChanged: (val) { if (val != null) setState(() => _selectedCategory = val); },
+              ),
+              // HINT
+              if (_selectedCategory.contains("Kredit") || _selectedCategory.contains("Pemakaian") || _selectedCategory.contains("Biaya DOC"))
+                Padding(
+                  padding: const EdgeInsets.only(top: 8.0),
+                  child: Text(
+                    "Info: Transaksi ini NON-TUNAI. Tidak mengurangi Kas di Dashboard, tapi tercatat di Laporan.",
+                    style: TextStyle(color: Colors.orange[800], fontSize: 12, fontStyle: FontStyle.italic),
                   ),
                 ),
+              const SizedBox(height: 15),
+
+              // TANGGAL
+              TextFormField(
+                controller: _dateController,
+                readOnly: true,
+                onTap: _selectDate,
+                decoration: const InputDecoration(labelText: "Tanggal", border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today)),
+              ),
+              const SizedBox(height: 15),
+
+              // CATATAN
+              TextFormField(
+                controller: _descController,
+                decoration: const InputDecoration(labelText: "Catatan (Opsional)", border: OutlineInputBorder()),
               ),
               const SizedBox(height: 30),
 
@@ -217,12 +240,9 @@ class _FormFinancePageState extends State<FormFinancePage> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: polbanBlue,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFA9C1B)),
                   onPressed: _saveTransaction,
-                  child: const Text('SIMPAN TRANSAKSI', style: TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                  child: Text(isEdit ? "SIMPAN PERUBAHAN" : "SIMPAN TRANSAKSI", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
             ],
@@ -231,22 +251,16 @@ class _FormFinancePageState extends State<FormFinancePage> {
       ),
     );
   }
+}
 
-  InputDecoration _inputDecoration({IconData? icon, String? prefix, String? hint}) {
-    return InputDecoration(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-      filled: true,
-      fillColor: Colors.grey[50],
-      prefixIcon: icon != null ? Icon(icon, color: const Color(0xFF1E549F)) : null,
-      prefixText: prefix,
-      hintText: hint,
-    );
-  }
-
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0, left: 4),
-      child: Text(title, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[700])),
-    );
+class CurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.selection.baseOffset == 0) return newValue;
+    String cleanText = newValue.text.replaceAll(RegExp(r'[^0-9]'), ''); 
+    double value = double.tryParse(cleanText) ?? 0;
+    final formatter = NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0);
+    String newText = formatter.format(value).trim();
+    return newValue.copyWith(text: newText, selection: TextSelection.collapsed(offset: newText.length));
   }
 }

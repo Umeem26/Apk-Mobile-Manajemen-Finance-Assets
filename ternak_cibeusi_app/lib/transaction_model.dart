@@ -1,6 +1,6 @@
 class TransactionModel {
   final int? id;
-  final String type;
+  final String type; // 'IN' atau 'OUT'
   final double amount;
   final String category;
   final String description;
@@ -15,17 +15,7 @@ class TransactionModel {
     required this.date,
   });
 
-  factory TransactionModel.fromMap(Map<String, dynamic> map) {
-    return TransactionModel(
-      id: map['id'],
-      type: map['type'],
-      amount: map['amount'],
-      category: map['category'],
-      description: map['description'],
-      date: map['date'],
-    );
-  }
-
+  // Konversi ke Map (untuk simpan ke DB)
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -35,5 +25,17 @@ class TransactionModel {
       'description': description,
       'date': date,
     };
+  }
+
+  // Konversi dari Map (baca dari DB)
+  factory TransactionModel.fromMap(Map<String, dynamic> map) {
+    return TransactionModel(
+      id: map['id'],
+      type: map['type'] ?? 'OUT', // Default jika null
+      amount: (map['amount'] is int) ? (map['amount'] as int).toDouble() : map['amount'], // Handle int/double
+      category: map['category'] ?? 'Umum',
+      description: map['description'] ?? '',
+      date: map['date'] ?? '',
+    );
   }
 }
