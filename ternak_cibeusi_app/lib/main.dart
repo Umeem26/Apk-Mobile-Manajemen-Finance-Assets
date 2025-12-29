@@ -4,14 +4,14 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:fl_chart/fl_chart.dart'; 
-import 'package:shared_preferences/shared_preferences.dart'; // Import ini
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'list_asset_page.dart';
 import 'list_finance_page.dart';
 import 'report_page.dart';
 import 'settings_page.dart';
 import 'database/database_helper.dart';
-import 'splash_page.dart'; // Import Halaman Splash
+import 'splash_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,7 +39,7 @@ class MyApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF0F4F8), 
         fontFamily: 'Roboto',
       ),
-      home: const SplashPage(), // [UBAH] Mulai dari SplashPage
+      home: const SplashPage(),
     );
   }
 }
@@ -52,16 +52,16 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  final Color polbanBlue = const Color(0xFF1E549F);
-  final Color polbanOrange = const Color(0xFFFA9C1B);
+  // PALET WARNA BIRU KONSISTEN
+  final Color bluePrimary = const Color(0xFF1E549F);
+  final Color blueDark = const Color(0xFF153E75);
+  final Color blueAccent = const Color(0xFF4FA3D1); // Pengganti Oranye
   
   int _totalTernak = 0;
   double _saldoKas = 0;
   double _totalMasuk = 0;
   double _totalKeluar = 0;
   String _lastUpdate = "-";
-  
-  // [BARU] Variabel Nama
   String _ownerName = "Juragan Ternak"; 
 
   @override
@@ -72,55 +72,57 @@ class _HomePageState extends State<HomePage> {
 
   void _loadSummary() async {
     final db = DatabaseHelper.instance;
-    final prefs = await SharedPreferences.getInstance(); // Akses Prefs
+    final prefs = await SharedPreferences.getInstance();
 
-    // 1. Ambil Nama User
     String? savedName = prefs.getString('owner_name');
-    
-    // 2. Hitung Aset
     final assets = await db.readAllAssets();
     int countTernak = 0;
     for (var a in assets) {
-      if (a.kategori == 'Ternak') countTernak += a.jumlah;
+      if (a.kategori.contains('Ternak')) countTernak += a.jumlah;
     }
-    
-    // 3. Hitung Keuangan
     final cashflow = await db.getSaldoCashflow();
 
     if (mounted) {
       setState(() {
-        _ownerName = savedName ?? "Juragan Ternak"; // Set Nama
+        _ownerName = savedName ?? "Juragan Ternak"; 
         _totalTernak = countTernak;
         _totalMasuk = cashflow['in']!;
         _totalKeluar = cashflow['out']!;
         _saldoKas = cashflow['total']!;
-        _lastUpdate = DateFormat('dd MMM HH:mm').format(DateTime.now());
+        _lastUpdate = DateFormat('HH:mm').format(DateTime.now());
       });
     }
   }
 
-  String _fmtUangFull(double amount) {
+  String _fmtUang(double amount) {
     return NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(amount);
+  }
+
+  String _fmtKecil(double amount) {
+    if (amount >= 1000000) {
+      return "${(amount / 1000000).toStringAsFixed(1)} Jt";
+    }
+    return NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(amount);
   }
 
   @override
   Widget build(BuildContext context) {
-    bool hasData = _totalMasuk > 0 || _totalKeluar > 0;
-
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
       body: Stack(
         children: [
+          // Background Header Biru Melengkung
           Container(
-            height: 240, 
+            height: 280, 
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [polbanBlue, const Color(0xFF2A75C7)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [bluePrimary, blueDark],
               ),
               borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(50),
-                bottomRight: Radius.circular(50),
+                bottomLeft: Radius.circular(40),
+                bottomRight: Radius.circular(40),
               ),
             ),
           ),
@@ -128,6 +130,7 @@ class _HomePageState extends State<HomePage> {
           SafeArea(
             child: Column(
               children: [
+                // 1. HEADER (Nama & Profil)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 20),
                   child: Row(
@@ -136,76 +139,57 @@ class _HomePageState extends State<HomePage> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("Selamat Datang,", style: TextStyle(color: Colors.white70, fontSize: 14)),
+                          const Text("Halo, Juragan", style: TextStyle(color: Colors.white70, fontSize: 14)),
                           const SizedBox(height: 4),
-                          // [UPDATE] Tampilkan Nama User
-                          Text(_ownerName, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                          Text(_ownerName, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                         ],
                       ),
                       Container(
-                        padding: const EdgeInsets.all(2),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                        child: const CircleAvatar(radius: 24, backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF1E549F))),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
+                        child: const CircleAvatar(radius: 22, backgroundColor: Colors.white, child: Icon(Icons.person, color: Color(0xFF1E549F))),
                       )
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 10),
-
-                // DASHBOARD CARD
+                // 2. KARTU SALDO UTAMA (Model Credit Card)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [BoxShadow(color: const Color(0xFF1E549F).withOpacity(0.25), blurRadius: 20, offset: const Offset(0, 10))],
+                      gradient: LinearGradient(
+                        colors: [blueAccent, bluePrimary],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(25),
+                      boxShadow: [
+                        BoxShadow(color: bluePrimary.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 10))
+                      ],
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          flex: 4,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _itemInfo(Icons.pets, polbanOrange, "Populasi", "$_totalTernak Ekor"),
-                              const SizedBox(height: 20),
-                              _itemInfo(Icons.account_balance_wallet, Colors.blueAccent, "Saldo Kas", _fmtUangFull(_saldoKas)),
-                            ],
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text("Total Saldo Kas", style: TextStyle(color: Colors.white70, fontSize: 14)),
+                            Icon(Icons.account_balance_wallet_rounded, color: Colors.white.withOpacity(0.5)),
+                          ],
                         ),
-                        Container(width: 1, height: 80, color: Colors.grey[200], margin: const EdgeInsets.symmetric(horizontal: 15)),
-                        Expanded(
-                          flex: 3,
-                          child: SizedBox(
-                            height: 80, 
-                            child: hasData 
-                              ? Stack(
-                                  children: [
-                                    PieChart(
-                                      PieChartData(
-                                        sectionsSpace: 0,
-                                        centerSpaceRadius: 28,
-                                        sections: [
-                                          PieChartSectionData(color: Colors.greenAccent[700], value: _totalMasuk, title: '', radius: 10),
-                                          PieChartSectionData(color: Colors.redAccent, value: _totalKeluar, title: '', radius: 10),
-                                        ],
-                                      ),
-                                    ),
-                                    Center(
-                                      child: Icon(
-                                        _saldoKas >= 0 ? Icons.check_circle_rounded : Icons.warning_rounded,
-                                        color: _saldoKas >= 0 ? Colors.green : Colors.red,
-                                        size: 28,
-                                      ),
-                                    )
-                                  ],
-                                )
-                              : const Center(child: Icon(Icons.pie_chart_outline, color: Colors.grey, size: 40)),
-                          ),
-                        ),
+                        const SizedBox(height: 15),
+                        Text(_fmtUang(_saldoKas), style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            const Icon(Icons.update, color: Colors.white70, size: 14),
+                            const SizedBox(width: 5),
+                            Text("Update: $_lastUpdate", style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                          ],
+                        )
                       ],
                     ),
                   ),
@@ -213,32 +197,47 @@ class _HomePageState extends State<HomePage> {
 
                 const SizedBox(height: 25),
 
+                // 3. RINGKASAN STATISTIK (3 Kotak Kecil)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    children: [
+                      _miniStatCard(Icons.pets, "Populasi", "$_totalTernak Ekor", Colors.blueAccent),
+                      const SizedBox(width: 12),
+                      _miniStatCard(Icons.arrow_downward_rounded, "Masuk", _fmtKecil(_totalMasuk), Colors.green),
+                      const SizedBox(width: 12),
+                      _miniStatCard(Icons.arrow_upward_rounded, "Keluar", _fmtKecil(_totalKeluar), Colors.redAccent),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 30),
+
+                // 4. GRID MENU UTAMA
                 Expanded(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 25),
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(topLeft: Radius.circular(30), topRight: Radius.circular(30)),
+                    ),
+                    padding: const EdgeInsets.all(25),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text("Menu Utama", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blueGrey[800])),
-                            Text("Updated: $_lastUpdate", style: TextStyle(fontSize: 11, color: Colors.grey[400])),
-                          ],
-                        ),
-                        const SizedBox(height: 15),
+                        Text("Menu Utama", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: blueDark)),
+                        const SizedBox(height: 20),
                         Expanded(
                           child: GridView.count(
                             crossAxisCount: 2,
                             crossAxisSpacing: 15,
                             mainAxisSpacing: 15,
-                            childAspectRatio: 1.2, 
-                            padding: const EdgeInsets.only(bottom: 20),
+                            childAspectRatio: 1.3,
                             children: [
-                              HoverMenuCard(title: "Aset Ternak", icon: Icons.inventory_2_rounded, color: polbanBlue, onTap: () => _navTo(const ListAssetPage())),
-                              HoverMenuCard(title: "Keuangan", icon: Icons.monetization_on_rounded, color: polbanOrange, onTap: () => _navTo(const ListFinancePage())),
-                              HoverMenuCard(title: "Laporan", icon: Icons.analytics_rounded, color: Colors.teal, onTap: () => _navTo(const ReportPage())),
-                              HoverMenuCard(title: "Pengaturan", icon: Icons.settings_rounded, color: Colors.blueGrey, onTap: () => _navTo(const SettingsPage())),
+                              _menuBtn("Aset Ternak", Icons.inventory_2_rounded, bluePrimary, () => _navTo(const ListAssetPage())),
+                              _menuBtn("Keuangan", Icons.monetization_on_rounded, blueDark, () => _navTo(const ListFinancePage())),
+                              _menuBtn("Laporan", Icons.analytics_rounded, Colors.teal, () => _navTo(const ReportPage())),
+                              _menuBtn("Pengaturan", Icons.settings_rounded, Colors.blueGrey, () => _navTo(const SettingsPage())),
                             ],
                           ),
                         ),
@@ -259,71 +258,48 @@ class _HomePageState extends State<HomePage> {
     _loadSummary();
   }
 
-  Widget _itemInfo(IconData icon, Color color, String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [Icon(icon, size: 14, color: color), const SizedBox(width: 5), Text(label, style: TextStyle(color: Colors.grey[600], fontSize: 12))]),
-        const SizedBox(height: 4),
-        Text(value, style: TextStyle(color: Colors.blueGrey[900], fontSize: 17, fontWeight: FontWeight.bold)),
-      ],
+  Widget _miniStatCard(IconData icon, String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 15, horizontal: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 5))],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+            const SizedBox(height: 4),
+            Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+          ],
+        ),
+      ),
     );
   }
-}
 
-class HoverMenuCard extends StatefulWidget {
-  final String title;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const HoverMenuCard({Key? key, required this.title, required this.icon, required this.color, required this.onTap}) : super(key: key);
-
-  @override
-  State<HoverMenuCard> createState() => _HoverMenuCardState();
-}
-
-class _HoverMenuCardState extends State<HoverMenuCard> {
-  bool _isHovering = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-          transform: Matrix4.identity()..scale(_isHovering ? 1.05 : 1.0), 
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(
-                color: _isHovering ? widget.color.withOpacity(0.3) : Colors.grey.withOpacity(0.05),
-                blurRadius: _isHovering ? 20 : 10,
-                offset: _isHovering ? const Offset(0, 10) : const Offset(0, 5),
-              )
-            ],
-            border: _isHovering ? Border.all(color: widget.color.withOpacity(0.5), width: 2) : Border.all(color: Colors.transparent),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: widget.color.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(widget.icon, size: 32, color: widget.color),
-              ),
-              const SizedBox(height: 15),
-              Text(widget.title, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey[800])),
-            ],
-          ),
+  Widget _menuBtn(String title, IconData icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFFF5F9FF), // Biru sangat muda
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.blue.withOpacity(0.05)),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, size: 28, color: color),
+            ),
+            const SizedBox(height: 10),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+          ],
         ),
       ),
     );

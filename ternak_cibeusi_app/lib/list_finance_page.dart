@@ -22,7 +22,6 @@ class _ListFinancePageState extends State<ListFinancePage> {
   
   final Color polbanBlue = const Color(0xFF1E549F);
   final Color polbanDarkBlue = const Color(0xFF153E75);
-  final Color polbanOrange = const Color(0xFFFA9C1B);
 
   @override
   void initState() {
@@ -48,25 +47,30 @@ class _ListFinancePageState extends State<ListFinancePage> {
 
   String _fmtUang(double amount) => NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(amount);
   
+  String _fmtDetail(double? price, int? qty) {
+    if (price == null || qty == null || price == 0) return "";
+    final fmtPrice = NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0).format(price);
+    return "(@ $fmtPrice x $qty)";
+  }
+
   String _fmtTanggal(String dateStr) {
     try {
       DateTime dt = DateTime.parse(dateStr);
       return DateFormat('dd MMM yyyy').format(dt);
-    } catch (e) {
-      return dateStr;
-    }
+    } catch (e) { return dateStr; }
   }
 
   void _showDeleteDialog(TransactionModel item) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: const Text("Hapus Transaksi?"),
         content: Text("Yakin ingin menghapus ${item.category}?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal", style: TextStyle(color: Colors.grey))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             onPressed: () async {
               await _dbHelper.deleteTransaction(item.id!);
               Navigator.pop(ctx);
@@ -92,8 +96,9 @@ class _ListFinancePageState extends State<ListFinancePage> {
       ),
       body: Column(
         children: [
-          // HEADER MODERN
+          // HEADER CARD (FULL BLUE)
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
             decoration: BoxDecoration(
               gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [polbanBlue, polbanDarkBlue]),
@@ -121,64 +126,61 @@ class _ListFinancePageState extends State<ListFinancePage> {
             ),
           ),
 
-          // LIST TRANSAKSI (Modern Card dengan Fix Typo sebelumnya)
+          // LIST TRANSAKSI
           Expanded(
             child: _isLoading
                 ? Center(child: CircularProgressIndicator(color: polbanBlue))
                 : _transactions.isEmpty
-                    ? const Center(child: Text("Belum ada transaksi", style: TextStyle(color: Colors.grey)))
+                    ? Center(child: Text("Belum ada transaksi", style: TextStyle(color: Colors.grey[400])))
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
+                        padding: const EdgeInsets.fromLTRB(20, 25, 20, 80),
                         itemCount: _transactions.length,
                         itemBuilder: (context, index) {
                           final item = _transactions[index];
                           bool isMasuk = item.type == 'IN';
                           bool isNonTunai = item.category.contains("Kredit") || item.category.contains("Pemakaian") || item.category.contains("Biaya DOC");
+                          Color statusColor = isNonTunai ? Colors.orange : (isMasuk ? Colors.green : Colors.redAccent);
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 15),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.08), blurRadius: 15, offset: const Offset(0, 5))]),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(20),
-                              child: Stack(
+                            decoration: BoxDecoration(
+                              color: Colors.white, 
+                              borderRadius: BorderRadius.circular(18), 
+                              boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.06), blurRadius: 10, offset: const Offset(0, 4))]
+                            ),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                              child: Row(
                                 children: [
-                                  Positioned(left: 0, top: 0, bottom: 0, child: Container(width: 5, color: isNonTunai ? Colors.orange : (isMasuk ? Colors.green : Colors.redAccent))),
-                                  Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Row(
+                                  Container(
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(color: statusColor.withOpacity(0.1), shape: BoxShape.circle),
+                                    child: Icon(isNonTunai ? Icons.history_edu : (isMasuk ? Icons.arrow_downward : Icons.arrow_upward), color: statusColor, size: 22),
+                                  ),
+                                  const SizedBox(width: 15),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        const SizedBox(width: 10),
-                                        Container(
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(color: isNonTunai ? Colors.orange.withOpacity(0.1) : (isMasuk ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1)), shape: BoxShape.circle),
-                                          child: Icon(isNonTunai ? Icons.history_edu : (isMasuk ? Icons.arrow_downward : Icons.arrow_upward), color: isNonTunai ? Colors.orange : (isMasuk ? Colors.green : Colors.red), size: 24),
-                                        ),
-                                        const SizedBox(width: 15),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Text(item.category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF2D3436))),
-                                              const SizedBox(height: 4),
-                                              Text(_fmtTanggal(item.date), style: TextStyle(color: Colors.grey[500], fontSize: 12)),
-                                              if(isNonTunai) Container(margin: const EdgeInsets.only(top: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.orange[50], borderRadius: BorderRadius.circular(4)), child: Text("Non-Tunai", style: TextStyle(fontSize: 10, color: Colors.orange[800]))),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment: CrossAxisAlignment.end,
-                                          children: [
-                                            Text("${isMasuk ? '+' : '-'} ${_fmtUang(item.amount).replaceAll('Rp ', '')}", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: isNonTunai ? Colors.grey : (isMasuk ? Colors.green : Colors.redAccent))),
-                                            const SizedBox(height: 8),
-                                            Row(children: [
-                                              GestureDetector(onTap: () async { await Navigator.push(context, MaterialPageRoute(builder: (context) => FormFinancePage(transaction: item))); _refreshTransactions(); }, child: const Icon(Icons.edit, size: 18, color: Colors.blueGrey)),
-                                              const SizedBox(width: 10),
-                                              GestureDetector(onTap: () => _showDeleteDialog(item), child: Icon(Icons.delete, size: 18, color: Colors.red[200])),
-                                            ])
-                                          ],
-                                        ),
+                                        Text(item.category, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2D3436))),
+                                        if (item.qty != null && item.qty! > 0)
+                                          Text(_fmtDetail(item.price, item.qty), style: const TextStyle(color: Colors.blueGrey, fontSize: 11, fontStyle: FontStyle.italic)),
+                                        const SizedBox(height: 4),
+                                        Text(_fmtTanggal(item.date), style: TextStyle(color: Colors.grey[400], fontSize: 11)),
                                       ],
                                     ),
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text("${isMasuk ? '+' : '-'} ${_fmtUang(item.amount).replaceAll('Rp ', '')}", style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: statusColor)),
+                                      const SizedBox(height: 5),
+                                      Row(children: [
+                                        GestureDetector(onTap: () async { await Navigator.push(context, MaterialPageRoute(builder: (context) => FormFinancePage(transaction: item))); _refreshTransactions(); }, child: Icon(Icons.edit, size: 18, color: Colors.grey[400])),
+                                        const SizedBox(width: 12),
+                                        GestureDetector(onTap: () => _showDeleteDialog(item), child: Icon(Icons.delete, size: 18, color: Colors.red[200])),
+                                      ])
+                                    ],
                                   ),
                                 ],
                               ),
@@ -190,7 +192,7 @@ class _ListFinancePageState extends State<ListFinancePage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: polbanOrange,
+        backgroundColor: polbanBlue, // GANTI JADI BIRU
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text("Catat Transaksi", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         onPressed: () async {

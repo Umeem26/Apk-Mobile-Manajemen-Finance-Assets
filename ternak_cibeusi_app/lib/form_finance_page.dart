@@ -15,240 +15,215 @@ class FormFinancePage extends StatefulWidget {
 class _FormFinancePageState extends State<FormFinancePage> {
   final _formKey = GlobalKey<FormState>();
   
-  final TextEditingController _amountController = TextEditingController();
+  final TextEditingController _priceController = TextEditingController(); 
+  final TextEditingController _qtyController = TextEditingController();   
+  final TextEditingController _totalController = TextEditingController(); 
   final TextEditingController _descController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
 
   String _selectedType = 'IN'; 
   String _selectedCategory = 'Jual Hasil Ternak Tunai'; 
   
-  // --- KATEGORI (SESUAI EXCEL & LOGIKA DATABASE) ---
-  
-  // PEMASUKAN
-  final List<String> _incomeCategories = [
-    'Jual Hasil Ternak Tunai',    
-    'Jual Hasil Ternak Kredit',   // Menambah Piutang
-    'Terima Pelunasan Piutang',   // Mengurangi Piutang
-    'Setor Modal Pribadi',        
-    'Setor Modal Pinjaman',       // Menambah Utang
-    'Pendapatan Lain-lain'        
-  ];
+  final List<String> _incomeCategories = ['Jual Hasil Ternak Tunai', 'Jual Hasil Ternak Kredit', 'Terima Pelunasan Piutang', 'Setor Modal Pribadi', 'Terima Pinjaman (Utang)', 'Pendapatan Lain-lain'];
+  final List<String> _expenseCategories = ['Beli Pakan Tunai', 'Beli Obat & Vitamin', 'Beli Ternak/DOC', 'Beli Perlengkapan Kandang', 'Beli Peralatan Kandang', 'Bayar Utang / Cicilan', 'Biaya Listrik & Air', 'Biaya Tenaga Kerja', 'Biaya Perawatan Kandang', 'Biaya Lain-lain', 'Prive (Ambil Uang)', 'Pemakaian Pakan (Stok)', 'Pemakaian Obat (Stok)', 'Biaya DOC (HPP saat Panen)'];
 
-  // PENGELUARAN
-  final List<String> _expenseCategories = [
-    // -- BELI ASET (Menambah Persediaan, Tidak Masuk Laba Rugi) --
-    'Beli Ternak Tunai',          
-    'Beli Ternak Kredit',         // Menambah Utang
-    'Beli Pakan Tunai',           
-    'Beli Pakan Kredit',          // Menambah Utang
-    'Beli Obat & Vitamin',        
-    'Beli Perlengkapan Kandang',
-    'Beli Peralatan Kandang',  
-    'Beli Mesin',                 
-    
-    // -- BIAYA OPERASIONAL (Masuk Laba Rugi) --
-    'Bayar Listrik dan Air',      
-    'Bayar Gaji / Upah',          
-    'Bayar Perawatan Kandang',    
-    'Sewa Lahan',                 
-    'Biaya Lain-lain',            
-    
-    // -- PEMAKAIAN (Mengurangi Persediaan -> Menjadi Beban) --
-    'Pemakaian Pakan',            
-    'Pemakaian Obat & Vitamin',   
-    'Pakai Perlengkapan Kandang', 
-    'Biaya DOC (Saat Jual)',      // HPP Bibit Ayam
-    
-    // -- KEWAJIBAN & PRIVE --
-    'Bayar Utang',                
-    'Bayar Pinjaman Modal',       
-    'Prive (Tarik Modal)',        
-  ];
+  final Color polbanBlue = const Color(0xFF1E549F); // Warna Biru Konsisten
 
   @override
   void initState() {
     super.initState();
     if (widget.transaction != null) {
-      _loadExistingData();
+      _selectedType = widget.transaction!.type;
+      _selectedCategory = widget.transaction!.category;
+      _qtyController.text = widget.transaction!.qty?.toString() ?? '1';
+      _priceController.text = _fmt(widget.transaction!.price ?? widget.transaction!.amount);
+      _totalController.text = _fmt(widget.transaction!.amount);
+      _descController.text = widget.transaction!.description;
+      _dateController.text = widget.transaction!.date;
     } else {
       _dateController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
-      _selectedType = 'IN';
-      _selectedCategory = _incomeCategories[0];
     }
   }
 
-  void _loadExistingData() {
-    final t = widget.transaction!;
-    _selectedType = t.type;
-    final formatter = NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0);
-    _amountController.text = formatter.format(t.amount).trim(); 
-    _selectedCategory = t.category;
-    _descController.text = t.description;
-    _dateController.text = t.date;
-    
-    if (_selectedType == 'IN' && !_incomeCategories.contains(_selectedCategory)) {
-      _incomeCategories.add(_selectedCategory);
-    } else if (_selectedType == 'OUT' && !_expenseCategories.contains(_selectedCategory)) {
-      _expenseCategories.add(_selectedCategory);
-    }
+  void _calculateTotal() {
+    String cleanPrice = _priceController.text.replaceAll(RegExp(r'[^0-9]'), '');
+    double price = double.tryParse(cleanPrice) ?? 0;
+    int qty = int.tryParse(_qtyController.text) ?? 0;
+    _totalController.text = NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(price * qty);
   }
 
-  Future<void> _selectDate() async {
-    DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (picked != null) {
-      setState(() {
-        _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
-      });
-    }
-  }
+  String _fmt(double val) => NumberFormat.currency(locale: 'id_ID', symbol: '', decimalDigits: 0).format(val);
 
   void _saveTransaction() async {
     if (_formKey.currentState!.validate()) {
-      String cleanAmount = _amountController.text.replaceAll('.', '').replaceAll(',', '').replaceAll('Rp', '').trim();
-      final amount = double.tryParse(cleanAmount) ?? 0;
-      
-      final newTransaction = TransactionModel(
+      String cleanPrice = _priceController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      String cleanTotal = _totalController.text.replaceAll(RegExp(r'[^0-9]'), '');
+      double price = double.tryParse(cleanPrice) ?? 0;
+      double total = double.tryParse(cleanTotal) ?? 0;
+      int qty = int.tryParse(_qtyController.text) ?? 1;
+      if (total == 0 && price > 0) total = price * qty;
+
+      final transaction = TransactionModel(
         id: widget.transaction?.id,
         type: _selectedType,
-        amount: amount,
+        amount: total,
         category: _selectedCategory,
         description: _descController.text,
         date: _dateController.text,
+        qty: qty,
+        price: price,
       );
 
-      if (widget.transaction == null) {
-        await DatabaseHelper.instance.insertTransaction(newTransaction);
-      } else {
-        await DatabaseHelper.instance.updateTransaction(newTransaction);
-      }
-
-      if (mounted) Navigator.pop(context);
+      if (widget.transaction == null) await DatabaseHelper.instance.insertTransaction(transaction);
+      else await DatabaseHelper.instance.updateTransaction(transaction);
+      if (!mounted) return;
+      Navigator.pop(context, true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     bool isEdit = widget.transaction != null;
-    List<String> currentCategories = _selectedType == 'IN' ? _incomeCategories : _expenseCategories;
-
-    if (!currentCategories.contains(_selectedCategory)) {
-      _selectedCategory = currentCategories[0];
-    }
-
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text(isEdit ? "Edit Data" : "Catat Transaksi"),
-        backgroundColor: const Color(0xFF1E549F),
+        title: Text(isEdit ? "Edit Transaksi" : "Catat Transaksi", style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: polbanBlue, // GANTI JADI BIRU
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Form(
           key: _formKey,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // SWITCH TYPE
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(color: const Color(0xFFF5F7FA), borderRadius: BorderRadius.circular(15)),
+                child: Row(
+                  children: [
+                    Expanded(child: _typeButton("Pemasukan", 'IN', Colors.green)),
+                    const SizedBox(width: 5),
+                    Expanded(child: _typeButton("Pengeluaran", 'OUT', Colors.redAccent)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 25),
+
+              _label("Kategori"),
+              DropdownButtonFormField<String>(
+                value: _selectedCategory,
+                isExpanded: true,
+                items: (_selectedType == 'IN' ? _incomeCategories : _expenseCategories).map((String category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
+                onChanged: (val) => setState(() => _selectedCategory = val!),
+                decoration: _inputDecoration(),
+              ),
+              const SizedBox(height: 20),
+
               Row(
                 children: [
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() { _selectedType = 'IN'; _selectedCategory = _incomeCategories[0]; }),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        decoration: BoxDecoration(
-                          color: _selectedType == 'IN' ? Colors.green : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(10),
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label("Harga Satuan (Rp)"),
+                        TextFormField(
+                          controller: _priceController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+                          onChanged: (_) => _calculateTotal(),
+                          decoration: _inputDecoration(prefix: "Rp "),
                         ),
-                        child: Center(child: Text("PEMASUKAN", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedType == 'IN' ? Colors.white : Colors.grey))),
-                      ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 15),
                   Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() { _selectedType = 'OUT'; _selectedCategory = _expenseCategories[0]; }),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 15),
-                        decoration: BoxDecoration(
-                          color: _selectedType == 'OUT' ? Colors.red : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(10),
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _label("Jumlah"),
+                        TextFormField(
+                          controller: _qtyController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (_) => _calculateTotal(),
+                          decoration: _inputDecoration(hint: "1"),
                         ),
-                        child: Center(child: Text("PENGELUARAN", style: TextStyle(fontWeight: FontWeight.bold, color: _selectedType == 'OUT' ? Colors.white : Colors.grey))),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 20),
 
-              // NOMINAL
+              _label("Total Nominal (Otomatis)"),
               TextFormField(
-                controller: _amountController,
-                keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
-                decoration: const InputDecoration(
-                  labelText: "Nominal (Rp)",
-                  border: OutlineInputBorder(),
-                  prefixText: "Rp ",
-                ),
-                validator: (val) => val!.isEmpty ? "Wajib diisi" : null,
+                controller: _totalController,
+                readOnly: true,
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: polbanBlue),
+                decoration: _inputDecoration(prefix: "Rp ", fillColor: const Color(0xFFE3F2FD)),
+                validator: (val) => val!.isEmpty || val == '0' ? "Nominal tidak boleh 0" : null,
               ),
-              const SizedBox(height: 15),
 
-              // KATEGORI
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                isExpanded: true,
-                decoration: const InputDecoration(labelText: "Kategori Transaksi", border: OutlineInputBorder()),
-                items: currentCategories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat, overflow: TextOverflow.ellipsis))).toList(),
-                onChanged: (val) { if (val != null) setState(() => _selectedCategory = val); },
-              ),
-              // HINT
-              if (_selectedCategory.contains("Kredit") || _selectedCategory.contains("Pemakaian") || _selectedCategory.contains("Biaya DOC"))
-                Padding(
-                  padding: const EdgeInsets.only(top: 8.0),
-                  child: Text(
-                    "Info: Transaksi ini NON-TUNAI. Tidak mengurangi Kas di Dashboard, tapi tercatat di Laporan.",
-                    style: TextStyle(color: Colors.orange[800], fontSize: 12, fontStyle: FontStyle.italic),
-                  ),
-                ),
-              const SizedBox(height: 15),
-
-              // TANGGAL
+              const SizedBox(height: 20),
+              _label("Tanggal"),
               TextFormField(
                 controller: _dateController,
                 readOnly: true,
-                onTap: _selectDate,
-                decoration: const InputDecoration(labelText: "Tanggal", border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today)),
+                decoration: _inputDecoration(icon: Icons.calendar_today),
+                onTap: () async {
+                  DateTime? picked = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2030));
+                  if (picked != null) _dateController.text = DateFormat('yyyy-MM-dd').format(picked);
+                },
               ),
               const SizedBox(height: 15),
-
-              // CATATAN
-              TextFormField(
-                controller: _descController,
-                decoration: const InputDecoration(labelText: "Catatan (Opsional)", border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 30),
-
+              _label("Catatan"),
+              TextFormField(controller: _descController, decoration: _inputDecoration(hint: "Opsional...")),
+              const SizedBox(height: 40),
+              
               SizedBox(
                 width: double.infinity,
-                height: 50,
+                height: 55,
                 child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFA9C1B)),
+                  style: ElevatedButton.styleFrom(backgroundColor: polbanBlue, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), elevation: 4), // GANTI JADI BIRU
                   onPressed: _saveTransaction,
-                  child: Text(isEdit ? "SIMPAN PERUBAHAN" : "SIMPAN TRANSAKSI", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                  child: Text(isEdit ? "SIMPAN PERUBAHAN" : "SIMPAN TRANSAKSI", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16)),
                 ),
               ),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _typeButton(String label, String value, Color color) {
+    bool isSelected = _selectedType == value;
+    return GestureDetector(
+      onTap: () => setState(() { _selectedType = value; _selectedCategory = value == 'IN' ? _incomeCategories[0] : _expenseCategories[0]; }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(color: isSelected ? Colors.white : Colors.transparent, borderRadius: BorderRadius.circular(12), boxShadow: isSelected ? [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)] : []),
+        child: Center(child: Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: isSelected ? color : Colors.grey))),
+      ),
+    );
+  }
+
+  Widget _label(String text) => Padding(padding: const EdgeInsets.only(bottom: 8, left: 4), child: Text(text, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)));
+  
+  InputDecoration _inputDecoration({IconData? icon, String? prefix, String? hint, Color? fillColor}) {
+    return InputDecoration(
+      filled: true, fillColor: fillColor ?? const Color(0xFFF5F7FA),
+      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none),
+      focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide(color: const Color(0xFF1E549F), width: 1.5)),
+      prefixIcon: icon != null ? Icon(icon, color: Colors.grey) : null,
+      prefixText: prefix, hintText: hint, contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
     );
   }
 }

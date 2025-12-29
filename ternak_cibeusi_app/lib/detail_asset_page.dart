@@ -17,7 +17,6 @@ class _DetailAssetPageState extends State<DetailAssetPage> {
   final Color polbanBlue = const Color(0xFF1E549F);
   final Color polbanOrange = const Color(0xFFFA9C1B);
 
-  // Perlu refresh asset jika ada edit
   late AssetModel _currentAsset;
 
   @override
@@ -35,39 +34,15 @@ class _DetailAssetPageState extends State<DetailAssetPage> {
   }
 
   void _refreshData() async {
-    // Ambil data terbaru dari DB berdasarkan ID
     final db = DatabaseHelper.instance;
     final allAssets = await db.readAllAssets();
-    final updated = allAssets.firstWhere((element) => element.id == _currentAsset.id, orElse: () => _currentAsset);
-    
-    if (mounted) {
-      setState(() {
-        _currentAsset = updated;
-      });
+    try {
+      final updated = allAssets.firstWhere((element) => element.id == _currentAsset.id);
+      setState(() => _currentAsset = updated);
+    } catch (e) {
+      // Jika terhapus
+      if(mounted) Navigator.pop(context);
     }
-  }
-
-  void _deleteAsset() async {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Hapus Aset?"),
-        content: const Text("Data ini akan hilang permanen."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await DatabaseHelper.instance.delete(_currentAsset.id!);
-              if (!mounted) return;
-              Navigator.pop(ctx); // Tutup Dialog
-              Navigator.pop(context); // Kembali ke List
-            },
-            child: const Text("Hapus", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -75,142 +50,83 @@ class _DetailAssetPageState extends State<DetailAssetPage> {
     bool hasImage = _currentAsset.imagePath.isNotEmpty && File(_currentAsset.imagePath).existsSync();
 
     return Scaffold(
-      backgroundColor: polbanBlue,
-      appBar: AppBar(
-        title: const Text('Rincian Aset', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit, color: Colors.white),
-            onPressed: _navigateToEdit,
-            tooltip: "Edit Data",
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete, color: Colors.white),
-            onPressed: _deleteAsset,
-            tooltip: "Hapus Data",
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // BAGIAN ATAS (GAMBAR/ICON)
-          Expanded(
-            flex: 3,
-            child: Center(
-              child: hasImage
-                  ? Container(
-                      margin: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: Colors.white, width: 3),
-                        image: DecorationImage(
-                          image: FileImage(File(_currentAsset.imagePath)),
-                          fit: BoxFit.cover,
-                        ),
-                        boxShadow: [
-                          BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 5))
-                        ],
-                      ),
-                    )
-                  : Container(
-                      width: 120,
-                      height: 120,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Icon(
-                        _getIconByCategory(_currentAsset.kategori),
-                        size: 60,
-                        color: Colors.white,
-                      ),
-                    ),
+      backgroundColor: Colors.white,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 300,
+            pinned: true,
+            backgroundColor: polbanBlue,
+            flexibleSpace: FlexibleSpaceBar(
+              background: hasImage 
+                ? Image.file(File(_currentAsset.imagePath), fit: BoxFit.cover)
+                : Container(
+                    color: polbanBlue.withOpacity(0.1),
+                    child: Icon(Icons.image, size: 80, color: polbanBlue.withOpacity(0.3)),
+                  ),
             ),
+            actions: [
+              IconButton(onPressed: _navigateToEdit, icon: const Icon(Icons.edit, color: Colors.white)),
+            ],
           ),
-          
-          // BAGIAN BAWAH (DETAIL INFO)
-          Expanded(
-            flex: 5,
-            child: Container(
-              padding: const EdgeInsets.all(25),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(30),
-                  topRight: Radius.circular(30),
-                ),
-              ),
-              child: SingleChildScrollView(
+          SliverList(
+            delegate: SliverChildListDelegate([
+              Padding(
+                padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // JUDUL & CHIPS
-                    Text(
-                      _currentAsset.nama,
-                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: polbanBlue),
-                    ),
-                    const SizedBox(height: 10),
                     Row(
                       children: [
-                        _buildChip(_currentAsset.kategori, polbanOrange),
-                        const SizedBox(width: 8),
-                        _buildChip(_currentAsset.kondisi, _getConditionColor(_currentAsset.kondisi)),
+                        _buildChip(_currentAsset.kategori, polbanBlue),
+                        const SizedBox(width: 10),
+                        _buildChip(_currentAsset.kondisi, _currentAsset.kondisi == 'Baik' ? Colors.green : Colors.red),
                       ],
                     ),
-                    const Divider(height: 30, thickness: 1),
-
-                    // GRID INFO UTAMA
-                    _buildInfoRow(Icons.numbers, "Jumlah Stok", "${_currentAsset.jumlah} ${_currentAsset.satuan ?? 'Unit'}"),
                     const SizedBox(height: 15),
-                    _buildInfoRow(Icons.health_and_safety, "Kondisi", _currentAsset.kondisi),
+                    Text(
+                      _currentAsset.nama,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 26, color: Color(0xFF2D3436)),
+                    ),
+                    const SizedBox(height: 25),
+                    
+                    // DETAIL UTAMA
+                    _buildInfoRow(Icons.production_quantity_limits, "Jumlah", "${_currentAsset.jumlah} ${_currentAsset.satuan ?? ''}"),
                     const SizedBox(height: 15),
                     _buildInfoRow(Icons.calendar_today, "Tanggal Input", _currentAsset.date),
                     
-                    // --- INFO KHUSUS OPERASIONAL (Jika Ada) ---
-                    if (_currentAsset.kategori == 'Operasional Habis Pakai') ...[
-                      const Divider(height: 30),
-                      const Text("Informasi Operasional", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey)),
+                    // DETAIL KHUSUS (Tampil jika ada datanya)
+                    if (_currentAsset.statusKepemilikan != null) ...[
                       const SizedBox(height: 15),
-                      
-                      if (_currentAsset.expiredDate != null && _currentAsset.expiredDate!.isNotEmpty)
-                        _buildInfoRow(Icons.event_busy, "Kadaluarsa (Expired)", _currentAsset.expiredDate!),
-                      
-                      const SizedBox(height: 15),
-                      if ((_currentAsset.usageForTernak ?? 0) > 0)
-                        _buildInfoRow(Icons.timelapse, "Estimasi Pemakaian", 
-                            "Cukup untuk ${_currentAsset.usageForTernak} Ekor selama ${_currentAsset.usageDuration} Hari"),
+                      _buildInfoRow(Icons.verified_user, "Status Kepemilikan", _currentAsset.statusKepemilikan!),
                     ],
-                    // ------------------------------------------
+                    if (_currentAsset.fungsiLahan != null) ...[
+                      const SizedBox(height: 15),
+                      _buildInfoRow(Icons.map, "Fungsi Lahan", _currentAsset.fungsiLahan!),
+                    ],
 
-                    const Divider(height: 30),
-                    const Text("Keterangan", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey)),
+                    const SizedBox(height: 25),
+                    const Divider(),
+                    const SizedBox(height: 15),
+                    const Text("Deskripsi", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                     const SizedBox(height: 8),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(15),
-                      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(10)),
-                      child: Text(
-                        _currentAsset.deskripsi.isEmpty ? "Tidak ada keterangan tambahan." : _currentAsset.deskripsi,
-                        style: TextStyle(color: Colors.grey[800], height: 1.5),
-                      ),
+                    Text(
+                      _currentAsset.deskripsi.isEmpty ? "-" : _currentAsset.deskripsi,
+                      style: TextStyle(color: Colors.grey[600], height: 1.5),
                     ),
+                    const SizedBox(height: 50),
                   ],
                 ),
               ),
-            ),
-          ),
+            ]),
+          )
         ],
       ),
     );
   }
 
-  // HELPER WIDGETS
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           padding: const EdgeInsets.all(10),
@@ -245,16 +161,5 @@ class _DetailAssetPageState extends State<DetailAssetPage> {
         style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11),
       ),
     );
-  }
-
-  IconData _getIconByCategory(String category) {
-    if (category == 'Ternak') return Icons.pets;
-    if (category == 'Operasional Habis Pakai') return Icons.inventory;
-    return Icons.domain;
-  }
-
-  Color _getConditionColor(String condition) {
-    if (condition.toLowerCase().contains('sehat') || condition.toLowerCase().contains('baik')) return Colors.green;
-    return Colors.red;
   }
 }
