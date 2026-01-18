@@ -28,7 +28,7 @@
 ### 📸 Tampilan Aplikasi
 | Onboarding | Dashboard | Laporan Keuangan |
 | :---: | :---: | :---: |
-| <img src="https://via.placeholder.com/200x400?text=Onboarding" width="200" /> | <img src="https://via.placeholder.com/200x400?text=Dashboard" width="200" /> | <img src="https://via.placeholder.com/200x400?text=Reports" width="200" /> |
+| <img src="ternak_cibeusi_app/assets/screenshots/onboarding.png" width="200" /> | <img src="ternak_cibeusi_app/assets/screenshots/dashboard.png" width="200" /> | <img src="ternak_cibeusi_app/assets/screenshots/laporan.png" width="200" /> |
 
 
 ### ⚙️ Instalasi & Penggunaan
